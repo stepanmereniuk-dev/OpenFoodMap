@@ -281,6 +281,10 @@ function itemActivity(messages: Message[], targetType: Message["targetType"], ta
   return lastMessage ? Date.parse(lastMessage.createdAt) : 0;
 }
 
+function itemMessageCount(messages: Message[], targetType: Message["targetType"], targetId: number) {
+  return messages.filter((message) => message.targetType === targetType && message.targetId === targetId).length;
+}
+
 function sortByMode<T extends { title: string; createdAt: string }>(
   items: T[],
   sortMode: SortMode,
@@ -1995,7 +1999,7 @@ export default function FoodMap() {
                   Signaler canal
                 </button>
               ),
-              meta: `Canal public · ${scopeLabel(openedChannel.scope)} · ${openedChannel.admins.length} admin(s)`,
+              meta: `Canal public · ${scopeLabel(openedChannel.scope)} · ${itemMessageCount(messages, "channel", openedChannel.id)} message(s)`,
               targetId: openedChannel.id,
               targetType: "channel",
               title: openedChannel.title,
@@ -2082,7 +2086,7 @@ export default function FoodMap() {
                           <h2>{channel.title}</h2>
                           <p>
                             <span className="event-location-dot" aria-hidden="true" />
-                            {scopeLabel(channel.scope)} · {channel.admins.length} admin(s)
+                            {scopeLabel(channel.scope)} · {itemMessageCount(messages, "channel", channel.id)} message(s)
                           </p>
                         </button>
                       </article>
