@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .api import test_url, test_mongodb_connection
+from .api import test_url, test_mongodb_connection, create_user
 from django.urls import path, include
 
 urlpatterns = [
@@ -7,4 +7,5 @@ urlpatterns = [
     path('api/test-url/', test_url),
     path('api/test-mongodb-connection/', test_mongodb_connection),
     path('api/products/', include('products.urls')),
+    path('api/users/create/', create_user),
 ]
