@@ -484,6 +484,13 @@ select {
   background: #622000;
 }
 
+.inline-form button:hover *,
+.inline-form button:focus-visible *,
+.action-row button:not(.ghost-button):hover *,
+.action-row button:not(.ghost-button):focus-visible * {
+  color: #fff;
+}
+
 .ghost-button {
   background: #fff;
   border: 1px solid #cfac9e;
@@ -493,6 +500,11 @@ select {
 
 .ghost-button:hover {
   background: var(--off-cappuccino);
+  color: var(--off-brown);
+}
+
+.ghost-button:hover *,
+.ghost-button:focus-visible * {
   color: var(--off-brown);
 }
 
@@ -590,6 +602,11 @@ select {
   background: #622000;
 }
 
+.chat-config-button:hover *,
+.chat-config-button:focus-visible * {
+  color: #fff;
+}
+
 .chat-config-button[aria-pressed="true"]:hover,
 .chat-config-button[aria-pressed="true"]:focus-visible {
   background: #9f332d;
@@ -651,6 +668,20 @@ select {
   color: #fff;
 }
 
+.chat-actions button:not(.ghost-button):hover,
+.chat-actions button:not(.ghost-button):focus-visible,
+.chat-composer button:hover,
+.chat-composer button:focus-visible {
+  background: #622000;
+}
+
+.chat-actions button:not(.ghost-button):hover *,
+.chat-actions button:not(.ghost-button):focus-visible *,
+.chat-composer button:hover *,
+.chat-composer button:focus-visible * {
+  color: #fff;
+}
+
 .chat-actions button:disabled,
 .chat-composer button:disabled,
 .inline-form button:disabled,
@@ -665,6 +696,17 @@ select {
 .chat-actions .ghost-button {
   background: #fff;
   border: 1px solid #cfac9e;
+  color: var(--off-brown);
+}
+
+.chat-actions .ghost-button:hover,
+.chat-actions .ghost-button:focus-visible {
+  background: var(--off-cappuccino);
+  color: var(--off-brown);
+}
+
+.chat-actions .ghost-button:hover *,
+.chat-actions .ghost-button:focus-visible * {
   color: var(--off-brown);
 }
 
@@ -789,6 +831,20 @@ select {
   color: #fff;
 }
 
+.config-row button:hover,
+.config-row button:focus-visible,
+.config-panel > button:not(.ghost-button):hover,
+.config-panel > button:not(.ghost-button):focus-visible {
+  background: #622000;
+}
+
+.config-row button:hover *,
+.config-row button:focus-visible *,
+.config-panel > button:not(.ghost-button):hover *,
+.config-panel > button:not(.ghost-button):focus-visible * {
+  color: #fff;
+}
+
 .config-panel > .ghost-button {
   background: #fff;
   border: 1px solid #d8cbc5;
@@ -863,6 +919,13 @@ select {
 .exact-picker button:hover,
 .exact-picker button:focus-visible {
   background: var(--off-cappuccino);
+}
+
+.member-list button:hover *,
+.member-list button:focus-visible *,
+.exact-picker button:hover *,
+.exact-picker button:focus-visible * {
+  color: var(--off-brown);
 }
 
 .exact-picker {
@@ -1033,23 +1096,6 @@ select {
   font-weight: 800;
 }
 
-.log-modal h2,
-.log-modal p,
-.log-modal .eyebrow {
-  color: #fff;
-}
-
-.log-list article {
-  background: rgb(255 255 255 / 8%);
-  border-color: rgb(255 255 255 / 28%);
-}
-
-.log-list time,
-.log-list strong,
-.log-list p {
-  color: #fff;
-}
-
 .map-modal-backdrop {
   align-items: flex-start;
   background: rgb(52 17 0 / 38%);
@@ -1073,12 +1119,6 @@ select {
   padding: 22px;
   position: relative;
   width: 440px;
-}
-
-.log-modal {
-  background: var(--off-brown);
-  border-color: #2a0e00;
-  color: #fff;
 }
 
 .profile-modal::before,
@@ -1114,16 +1154,9 @@ select {
   outline-offset: 2px;
 }
 
-.log-modal .modal-close {
-  background: #fff;
-  border-color: #fff;
-  color: var(--off-brown);
-}
-
-.log-modal .modal-close:hover,
-.log-modal .modal-close:focus-visible {
-  background: var(--off-orange);
-  color: #fff;
+.modal-close:hover *,
+.modal-close:focus-visible * {
+  color: #333;
 }
 
 .modal-actions {
@@ -1150,6 +1183,16 @@ select {
   color: #fff;
 }
 
+.modal-actions button:not(.ghost-button):hover,
+.modal-actions button:not(.ghost-button):focus-visible {
+  background: #622000;
+}
+
+.modal-actions button:not(.ghost-button):hover *,
+.modal-actions button:not(.ghost-button):focus-visible * {
+  color: #fff;
+}
+
 .modal-actions .ghost-button {
   background: #fff;
   border: 1px solid #cfac9e;
@@ -1160,6 +1203,11 @@ select {
 .modal-actions .ghost-button:hover,
 .modal-actions .ghost-button:focus-visible {
   background: var(--off-cappuccino);
+  color: var(--off-brown);
+}
+
+.modal-actions .ghost-button:hover *,
+.modal-actions .ghost-button:focus-visible * {
   color: var(--off-brown);
 }
 
@@ -1387,6 +1435,11 @@ select {
 
 .submit-person:hover {
   background: #622000;
+}
+
+.submit-person:hover *,
+.submit-person:focus-visible * {
+  color: #fff;
 }
 
 .submit-person:disabled {
