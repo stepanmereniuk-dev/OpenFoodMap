@@ -1,3 +1,6 @@
+@import "../public/off-css/app-ltr.css";
+@import "../public/off-css/jquery-ui.css";
+@import "../public/off-css/select2.min.css";
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
 
