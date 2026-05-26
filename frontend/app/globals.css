@@ -440,20 +440,22 @@ select {
 .inline-form {
   background: transparent;
   border: 0;
-  border-bottom: 1px solid #e2d8d2;
+  border-top: 1px solid #e2d8d2;
   border-radius: 0;
   display: grid;
   gap: .5714285714rem;
-  padding: 0 0 1.1428571429rem;
+  padding: 1.1428571429rem 0 0;
 }
 
 .inline-form-row {
+  align-items: start;
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .inline-form button,
 .action-row button,
 .ghost-button {
+  align-self: start;
   background: var(--off-brown);
   border: 0;
   border-radius: 0;
@@ -495,6 +497,10 @@ select {
   flex-direction: column;
   height: min(540px, calc(100vh - 270px));
   min-height: 420px;
+}
+
+.chat-view-config-open {
+  height: min(680px, calc(100vh - 170px));
 }
 
 .chat-header {
@@ -687,6 +693,7 @@ select {
   background: #fff;
   border-bottom: 1px solid #d8cbc5;
   display: grid;
+  flex: 0 0 auto;
   gap: 9px;
   max-height: min(380px, calc(100vh - 410px));
   overflow: auto;

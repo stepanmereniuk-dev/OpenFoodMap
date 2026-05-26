@@ -1839,7 +1839,7 @@ export default function FoodMap() {
     const itemMessages = messages.filter((message) => message.targetType === targetType && message.targetId === targetId);
 
     return (
-      <article className="chat-view">
+      <article className={isConfigOpen ? "chat-view chat-view-config-open" : "chat-view"}>
         <header className="chat-header">
           <button aria-label="Retour à la liste" className="chat-back" onClick={closeChat} type="button">‹</button>
           <div>
@@ -2029,21 +2029,6 @@ export default function FoodMap() {
 
           {activeTab === "events" && !openedEvent && (
             <div className="social-section">
-              <form className="inline-form" onSubmit={createEvent}>
-                <input
-                  aria-label="Titre événement"
-                  onChange={(event) => setEventForm({ ...eventForm, title: event.target.value })}
-                  placeholder="Nouvel événement"
-                  value={eventForm.title}
-                />
-                <input
-                  aria-label="Date événement"
-                  onChange={(event) => setEventForm({ ...eventForm, date: event.target.value })}
-                  type="date"
-                  value={eventForm.date}
-                />
-                <button type="submit">Créer</button>
-              </form>
               <div className="event-list">
                 {visibleEvents.length > 0 ? (
                   visibleEvents.map((eventItem) => (
@@ -2065,20 +2050,26 @@ export default function FoodMap() {
                   <p className="off-empty">Aucun évènement pour ce niveau.</p>
                 )}
               </div>
+              <form className="inline-form" onSubmit={createEvent}>
+                <input
+                  aria-label="Titre événement"
+                  onChange={(event) => setEventForm({ ...eventForm, title: event.target.value })}
+                  placeholder="Nouvel événement"
+                  value={eventForm.title}
+                />
+                <input
+                  aria-label="Date événement"
+                  onChange={(event) => setEventForm({ ...eventForm, date: event.target.value })}
+                  type="date"
+                  value={eventForm.date}
+                />
+                <button type="submit">Créer</button>
+              </form>
             </div>
           )}
 
           {activeTab === "channels" && !openedChannel && (
             <div className="social-section">
-              <form className="inline-form inline-form-row" onSubmit={createChannel}>
-                <input
-                  aria-label="Nom canal"
-                  onChange={(event) => setChannelTitle(event.target.value)}
-                  placeholder={`Canal public · ${selectedScope.label}`}
-                  value={channelTitle}
-                />
-                <button type="submit">Créer</button>
-              </form>
               <div className="event-list">
                 {visibleChannels.length > 0 ? (
                   visibleChannels.map((channel) => (
@@ -2100,28 +2091,20 @@ export default function FoodMap() {
                   <p className="off-empty">Aucun canal.</p>
                 )}
               </div>
+              <form className="inline-form inline-form-row" onSubmit={createChannel}>
+                <input
+                  aria-label="Nom canal"
+                  onChange={(event) => setChannelTitle(event.target.value)}
+                  placeholder={`Canal public · ${selectedScope.label}`}
+                  value={channelTitle}
+                />
+                <button type="submit">Créer</button>
+              </form>
             </div>
           )}
 
           {activeTab === "discussion" && !openedThread && (
             <div className="social-section">
-              <form className="inline-form" onSubmit={createThread}>
-                <input
-                  aria-label="Nom discussion"
-                  onChange={(event) => setThreadForm({ ...threadForm, title: event.target.value })}
-                  placeholder="Nom de discussion"
-                  value={threadForm.title}
-                />
-                {renderExactPersonInput({
-                  excludedIds: [currentUser.id],
-                  label: "Pseudo exact membre",
-                  query: threadForm.memberQuery,
-                  setQuery: (memberQuery) => setThreadForm({ ...threadForm, memberQuery }),
-                })}
-                <button disabled={!exactPersonInputState(threadForm.memberQuery, [currentUser.id]).candidate} type="submit">
-                  Créer
-                </button>
-              </form>
               <div className="event-list">
                 {visibleThreads.length > 0 ? (
                   visibleThreads.map((thread) => (
@@ -2143,6 +2126,23 @@ export default function FoodMap() {
                   <p className="off-empty">Aucune discussion.</p>
                 )}
               </div>
+              <form className="inline-form" onSubmit={createThread}>
+                <input
+                  aria-label="Nom discussion"
+                  onChange={(event) => setThreadForm({ ...threadForm, title: event.target.value })}
+                  placeholder="Nom de discussion"
+                  value={threadForm.title}
+                />
+                {renderExactPersonInput({
+                  excludedIds: [currentUser.id],
+                  label: "Pseudo exact membre",
+                  query: threadForm.memberQuery,
+                  setQuery: (memberQuery) => setThreadForm({ ...threadForm, memberQuery }),
+                })}
+                <button disabled={!exactPersonInputState(threadForm.memberQuery, [currentUser.id]).candidate} type="submit">
+                  Créer
+                </button>
+              </form>
             </div>
           )}
         </div>
