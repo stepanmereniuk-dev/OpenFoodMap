@@ -2149,7 +2149,7 @@ export default function FoodMap() {
       </section>
 
       {selectedPerson && (
-        <div className="map-modal-backdrop" role="presentation">
+        <div className="map-modal-backdrop profile-modal-backdrop" role="presentation">
           <section aria-label="Profil" aria-modal="true" className="profile-modal" role="dialog">
             <button
               aria-label="Fermer le profil"

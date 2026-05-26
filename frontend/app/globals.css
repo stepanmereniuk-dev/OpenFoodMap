@@ -953,6 +953,7 @@ select {
 
 .profile-modal,
 .log-modal {
+  align-content: start;
   border-left: 1px solid #e2d8d2;
   border-top: 8px solid var(--off-pink);
   box-shadow: 0 22px 70px rgb(52 17 0 / 24%);
@@ -1578,6 +1579,10 @@ select {
     padding: 10px;
   }
 
+  .profile-modal-backdrop {
+    padding: 0;
+  }
+
   .profile-modal,
   .log-modal {
     margin: 0;
@@ -1588,6 +1593,12 @@ select {
 
   .profile-modal {
     align-self: flex-start;
+    border: 0;
+    border-top: 8px solid var(--off-pink);
+    height: 100dvh;
+    max-height: none;
+    max-width: none;
+    width: 100vw;
   }
 
   .profile-modal .profile-modal-close {
