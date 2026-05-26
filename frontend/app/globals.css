@@ -340,31 +340,24 @@ select {
 .card-select:hover,
 .event-card:hover .card-select,
 .card-select:focus-visible {
-  background: transparent;
-  background-color: transparent !important;
-  border-color: transparent;
+  background: var(--off-brown);
+  background-color: var(--off-brown) !important;
   box-shadow: none;
-  color: inherit;
+  color: #fff;
   outline: none;
   outline-offset: 0;
 }
 
-.card-select:focus-visible h2,
-.event-card:hover .card-select h2,
-.card-select:hover h2 {
-  color: #fff !important;
-}
-
 .card-select:focus-visible time,
-.event-card:hover .card-select time,
-.card-select:hover time {
-  color: var(--off-orange) !important;
-}
-
+.card-select:focus-visible h2,
 .card-select:focus-visible p,
+.event-card:hover .card-select time,
+.event-card:hover .card-select h2,
 .event-card:hover .card-select p,
+.card-select:hover time,
+.card-select:hover h2,
 .card-select:hover p {
-  color: #3f332e !important;
+  color: #fff !important;
 }
 
 .event-dot,
