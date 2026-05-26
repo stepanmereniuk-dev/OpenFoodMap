@@ -1848,8 +1848,6 @@ export default function FoodMap() {
           </div>
         </header>
         <div className="chat-actions">
-          {actions}
-          {afterConfigActions}
           <button
             aria-label="Configuration"
             aria-pressed={isConfigOpen}
@@ -1857,8 +1855,10 @@ export default function FoodMap() {
             onClick={() => setIsConfigOpen((isOpen) => !isOpen)}
             type="button"
           >
-            ⚙️
+            <span className="material-icons chat-config-icon" aria-hidden="true">settings</span>
           </button>
+          {actions}
+          {afterConfigActions}
         </div>
         {isConfigOpen && renderConfigPanel()}
         <div className="message-list chat-messages">
@@ -2158,7 +2158,6 @@ export default function FoodMap() {
               type="button"
             >
               <span className="modal-close-desktop" aria-hidden="true">×</span>
-              <span className="modal-close-mobile" aria-hidden="true">‹</span>
             </button>
             <div>
               <p className="eyebrow">Profil</p>

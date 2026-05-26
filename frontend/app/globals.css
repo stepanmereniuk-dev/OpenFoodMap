@@ -152,20 +152,19 @@ select {
 .off-menu {
   background: var(--off-latte);
   border: 1px solid #d8cbc5;
-  border-top: 8px solid var(--off-pink);
-  border-radius: 2px;
+  border-radius: 0;
   box-shadow: 0 14px 38px rgb(52 17 0 / 18%);
   display: flex;
   flex-direction: column;
   left: 18px;
-  max-height: calc(100vh - 160px);
-  max-width: min(360px, calc(100vw - 36px));
+  max-height: calc(100vh - 132px);
+  max-width: min(400px, calc(100vw - 36px));
   overflow: hidden;
   padding: 0;
   position: absolute;
   top: 18px;
   z-index: 500;
-  width: 360px;
+  width: 400px;
 }
 
 .off-menu-slider {
@@ -173,10 +172,7 @@ select {
 }
 
 .off-menu::before {
-  background: linear-gradient(90deg, var(--off-orange), var(--off-pink));
-  content: "";
-  display: block;
-  height: 4px;
+  content: none;
 }
 
 .off-menu-header p,
@@ -299,8 +295,7 @@ select {
 .event-card {
   background: #fff;
   border: 1px solid #e2d8d2;
-  border-left: 4px solid var(--off-orange);
-  border-radius: 2px;
+  border-radius: 0;
   padding: 12px 13px;
 }
 
@@ -347,9 +342,8 @@ select {
 
 .event-dot {
   background: var(--off-orange);
-  border-radius: 2px;
+  border-radius: 0;
   height: 9px;
-  transform: rotate(2.5deg);
   width: 9px;
 }
 
@@ -383,7 +377,7 @@ select {
 .off-placeholder {
   background: #fff;
   border: 1px solid #e2d8d2;
-  border-radius: 2px;
+  border-radius: 0;
   padding: 14px;
 }
 
@@ -397,7 +391,7 @@ select {
 .off-empty {
   background: #fff;
   border: 1px solid #e2d8d2;
-  border-radius: 2px;
+  border-radius: 0;
   margin: 0;
   padding: 14px;
 }
@@ -416,7 +410,7 @@ select {
 .action-row select {
   background: #fff;
   border: 1px solid #d8cbc5;
-  border-radius: 2px;
+  border-radius: 0;
   color: var(--foreground);
   font-size: 12px;
   height: 34px;
@@ -442,7 +436,7 @@ select {
 .inline-form {
   background: #fff;
   border: 1px solid #e2d8d2;
-  border-radius: 2px;
+  border-radius: 0;
   display: grid;
   gap: 7px;
   padding: 10px;
@@ -457,7 +451,7 @@ select {
 .ghost-button {
   background: var(--off-brown);
   border: 0;
-  border-radius: 5px;
+  border-radius: 0;
   color: #fff;
   cursor: pointer;
   font-size: 12px;
@@ -475,6 +469,7 @@ select {
 .ghost-button {
   background: #fff;
   border: 1px solid #d8cbc5;
+  border-radius: 0;
   color: var(--off-brown);
 }
 
@@ -486,11 +481,11 @@ select {
 .chat-view {
   background: #fff;
   border: 1px solid #e2d8d2;
-  border-radius: 2px;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
-  height: min(420px, calc(100vh - 330px));
-  min-height: 360px;
+  height: min(540px, calc(100vh - 270px));
+  min-height: 420px;
 }
 
 .chat-header {
@@ -525,7 +520,7 @@ select {
   align-items: center;
   background: #fff;
   border: 0;
-  border-radius: 5px;
+  border-radius: 0;
   color: var(--off-brown);
   cursor: pointer;
   display: flex;
@@ -539,22 +534,62 @@ select {
 }
 
 .chat-config-button {
-  background: var(--off-pink);
+  align-items: center;
+  background: var(--off-brown);
   border: 0;
-  border-radius: 5px;
+  border-radius: 0;
   color: #fff;
   cursor: pointer;
-  font-size: 11px;
+  display: inline-flex;
+  font-size: 0;
   font-weight: 900;
-  margin-left: auto;
+  justify-content: center;
   min-height: 32px;
-  padding: 6px 8px;
+  min-width: 36px;
+  overflow: hidden;
+  padding: 6px 10px;
   text-transform: uppercase;
+  width: 36px;
 }
 
 .chat-config-button[aria-pressed="true"] {
-  background: #fff;
-  color: var(--off-brown);
+  background: #b94c43;
+  color: #fff;
+}
+
+.chat-config-button:hover,
+.chat-config-button:focus-visible {
+  background: #622000;
+}
+
+.chat-config-button[aria-pressed="true"]:hover,
+.chat-config-button[aria-pressed="true"]:focus-visible {
+  background: #9f332d;
+}
+
+.chat-config-button:focus-visible,
+.chat-actions button:focus-visible,
+.chat-composer button:focus-visible,
+.modal-actions button:focus-visible,
+.member-list button:focus-visible,
+.exact-picker button:focus-visible,
+.inline-form button:focus-visible {
+  outline: 2px solid rgb(255 135 20 / 45%);
+  outline-offset: 2px;
+}
+
+.chat-config-icon {
+  display: block;
+  font-family: "Material Icons";
+  font-feature-settings: "liga";
+  font-size: 18px;
+  font-style: normal;
+  font-weight: 400;
+  height: 18px;
+  letter-spacing: 0;
+  line-height: 18px;
+  text-transform: none;
+  width: 18px;
 }
 
 .chat-actions {
@@ -564,6 +599,7 @@ select {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
+  justify-content: flex-start;
   padding: 9px;
 }
 
@@ -571,7 +607,7 @@ select {
 .chat-composer button {
   background: var(--off-brown);
   border: 0;
-  border-radius: 5px;
+  border-radius: 0;
   color: #fff;
   cursor: pointer;
   font-size: 12px;
@@ -584,6 +620,9 @@ select {
 .chat-composer button:disabled,
 .inline-form button:disabled,
 .exact-picker button:disabled {
+  background: #9c877d;
+  border-color: #9c877d;
+  color: #fff;
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -598,7 +637,7 @@ select {
 .chat-composer input {
   background: #fff;
   border: 1px solid #d8cbc5;
-  border-radius: 2px;
+  border-radius: 0;
   color: var(--foreground);
   font-size: 12px;
   height: 34px;
@@ -636,7 +675,7 @@ select {
   border-bottom: 1px solid #eadfd9;
   display: grid;
   gap: 9px;
-  max-height: 260px;
+  max-height: min(380px, calc(100vh - 410px));
   overflow: auto;
   padding: 10px;
 }
@@ -653,7 +692,7 @@ select {
 .config-panel select {
   background: #fff;
   border: 1px solid #d8cbc5;
-  border-radius: 2px;
+  border-radius: 0;
   color: var(--foreground);
   font-size: 12px;
   height: 34px;
@@ -665,7 +704,7 @@ select {
 .config-grid {
   background: #fff;
   border: 1px solid #eadfd9;
-  border-radius: 2px;
+  border-radius: 0;
   display: grid;
   gap: 4px 8px;
   grid-template-columns: 76px minmax(0, 1fr);
@@ -696,7 +735,7 @@ select {
 .config-panel > button {
   background: var(--off-brown);
   border: 0;
-  border-radius: 5px;
+  border-radius: 0;
   color: #fff;
   cursor: pointer;
   font-size: 12px;
@@ -708,13 +747,14 @@ select {
 .config-panel > .ghost-button {
   background: #fff;
   border: 1px solid #d8cbc5;
+  border-radius: 0;
   color: var(--off-brown);
 }
 
 .management-block {
   background: #fff;
   border: 1px solid #e2d8d2;
-  border-radius: 2px;
+  border-radius: 0;
   display: grid;
   gap: 8px;
   padding: 10px;
@@ -737,7 +777,7 @@ select {
   align-items: center;
   background: var(--off-latte);
   border: 1px solid #e2d8d2;
-  border-radius: 2px;
+  border-radius: 0;
   display: grid;
   gap: 6px;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -762,13 +802,20 @@ select {
 .exact-picker button {
   background: #fff;
   border: 1px solid #d8cbc5;
-  border-radius: 5px;
+  border-radius: 0;
   color: var(--off-brown);
   cursor: pointer;
   font-size: 11px;
   font-weight: 900;
   min-height: 30px;
   padding: 5px 8px;
+}
+
+.member-list button:hover,
+.member-list button:focus-visible,
+.exact-picker button:hover,
+.exact-picker button:focus-visible {
+  background: var(--off-cappuccino);
 }
 
 .exact-picker {
@@ -791,7 +838,7 @@ select {
 .exact-input-wrap input {
   background: transparent;
   border: 1px solid #d8cbc5;
-  border-radius: 2px;
+  border-radius: 0;
   color: var(--foreground);
   font-size: 12px;
   height: 34px;
@@ -860,8 +907,7 @@ select {
 .log-modal {
   background: #fff;
   border: 1px solid #e2d8d2;
-  border-left: 4px solid var(--off-pink);
-  border-radius: 2px;
+  border-radius: 0;
   display: grid;
   gap: 10px;
   margin-bottom: 12px;
@@ -912,7 +958,7 @@ select {
 .profile-modal dl div {
   background: #fff;
   border: 1px solid #e2d8d2;
-  border-radius: 2px;
+  border-radius: 0;
   padding: 8px;
 }
 
@@ -954,8 +1000,7 @@ select {
 .profile-modal,
 .log-modal {
   align-content: start;
-  border-left: 1px solid #e2d8d2;
-  border-top: 8px solid var(--off-pink);
+  border: 1px solid #e2d8d2;
   box-shadow: 0 22px 70px rgb(52 17 0 / 24%);
   margin: auto 0;
   max-height: calc(100dvh - 32px);
@@ -968,20 +1013,14 @@ select {
 
 .profile-modal::before,
 .log-modal::before {
-  background: linear-gradient(90deg, var(--off-orange), var(--off-pink));
-  content: "";
-  height: 4px;
-  left: 0;
-  position: absolute;
-  right: 0;
-  top: 0;
+  content: none;
 }
 
 .modal-close {
   align-items: center;
   background: var(--off-brown);
   border: 0;
-  border-radius: 999px;
+  border-radius: 0;
   color: #fff;
   cursor: pointer;
   display: flex;
@@ -1004,10 +1043,6 @@ select {
   outline-offset: 2px;
 }
 
-.modal-close-mobile {
-  display: none;
-}
-
 .modal-actions {
   display: grid;
   gap: 8px;
@@ -1017,18 +1052,25 @@ select {
 .modal-actions button {
   background: var(--off-brown);
   border: 0;
-  border-radius: 5px;
+  border-radius: 0;
   color: #fff;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
-  min-height: 38px;
-  padding: 8px 10px;
+  min-height: 34px;
+  padding: 7px 10px;
 }
 
 .modal-actions .ghost-button {
   background: #fff;
   border: 1px solid #d8cbc5;
+  border-radius: 0;
+  color: var(--off-brown);
+}
+
+.modal-actions .ghost-button:hover,
+.modal-actions .ghost-button:focus-visible {
+  background: var(--off-cappuccino);
   color: var(--off-brown);
 }
 
@@ -1040,8 +1082,7 @@ select {
 .log-list article {
   background: var(--off-latte);
   border: 1px solid #e2d8d2;
-  border-left: 4px solid var(--off-orange);
-  border-radius: 2px;
+  border-radius: 0;
   display: grid;
   gap: 4px;
   padding: 10px;
@@ -1091,8 +1132,7 @@ select {
 .message-bubble {
   background: #fff;
   border: 1px solid #e2d8d2;
-  border-left: 4px solid var(--off-pink);
-  border-radius: 2px;
+  border-radius: 0;
   color: #3f332e;
   font-size: 12px;
   line-height: 1.35;
@@ -1110,8 +1150,7 @@ select {
 .social-status {
   background: #fff;
   border: 1px solid #e2d8d2;
-  border-left: 4px solid var(--off-pink);
-  border-radius: 2px;
+  border-radius: 0;
   color: var(--off-brown);
   margin: 0 0 10px;
   padding: 8px;
@@ -1135,8 +1174,7 @@ select {
 .login-modal {
   background: #fff;
   border: 1px solid #d8cbc5;
-  border-top: 8px solid var(--off-pink);
-  border-radius: 2px;
+  border-radius: 0;
   box-shadow: 0 22px 70px rgb(52 17 0 / 26%);
   max-width: min(440px, 100%);
   padding: 22px;
@@ -1148,13 +1186,7 @@ select {
 }
 
 .login-modal::before {
-  background: linear-gradient(90deg, var(--off-orange), var(--off-pink));
-  content: "";
-  height: 4px;
-  left: 0;
-  position: absolute;
-  right: 0;
-  top: 0;
+  content: none;
 }
 
 .login-modal *,
@@ -1221,7 +1253,7 @@ select {
 .login-form input {
   background: #fff;
   border: 1px solid #d8cbc5;
-  border-radius: 2px;
+  border-radius: 0;
   color: var(--foreground);
   font-size: 14px;
   height: 40px;
@@ -1252,7 +1284,7 @@ select {
   align-items: center;
   background: var(--off-brown);
   border: 0;
-  border-radius: 5px;
+  border-radius: 0;
   color: #fff;
   cursor: pointer;
   display: inline-flex;
@@ -1508,7 +1540,7 @@ select {
   }
 
   .off-menu-mobile-open::before {
-    height: 8px;
+    height: 0;
   }
 
   .off-menu-slider {
@@ -1562,12 +1594,12 @@ select {
   }
 
   .off-menu-mobile-open .chat-view {
-    height: calc(100dvh - 212px);
+    height: calc(100dvh - 192px);
     min-height: 0;
   }
 
   .off-menu-mobile-open .config-panel {
-    max-height: calc(100dvh - 286px);
+    max-height: calc(100dvh - 270px);
   }
 
   .off-menu-mobile-open .chat-messages {
@@ -1594,7 +1626,6 @@ select {
   .profile-modal {
     align-self: flex-start;
     border: 0;
-    border-top: 8px solid var(--off-pink);
     height: 100dvh;
     max-height: none;
     max-width: none;
@@ -1602,22 +1633,15 @@ select {
   }
 
   .profile-modal .profile-modal-close {
-    font-size: 30px;
-    left: 12px;
-    padding: 0 2px 3px 0;
-    right: auto;
-  }
-
-  .profile-modal .modal-close-desktop {
-    display: none;
-  }
-
-  .profile-modal .modal-close-mobile {
-    display: inline;
+    font-size: 22px;
+    left: auto;
+    padding: 0 0 2px;
+    right: 12px;
   }
 
   .profile-modal > div:first-of-type {
-    padding-left: 42px;
+    padding-left: 0;
+    padding-right: 42px;
   }
 
   .modal-actions {
