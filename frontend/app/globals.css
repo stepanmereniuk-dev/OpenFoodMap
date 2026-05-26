@@ -76,12 +76,15 @@ html,
 body {
   height: 100%;
   margin: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: "Public Sans", Helvetica, Roboto, Arial, sans-serif;
+  width: 100%;
 }
 
 button,
@@ -95,10 +98,14 @@ select {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 .off-chrome-host {
   display: block;
+  max-width: 100vw;
+  overflow-x: clip;
   position: relative;
   z-index: 1000;
 }
@@ -111,6 +118,7 @@ select {
   flex-shrink: 0;
   height: calc(100vh - 108px);
   min-height: 540px;
+  max-width: 100vw;
   overflow: hidden;
   position: relative;
 }
@@ -127,7 +135,9 @@ select {
 }
 
 .leaflet-map {
+  contain: layout paint;
   height: 100%;
+  overflow: hidden;
   width: 100%;
 }
 
@@ -450,8 +460,8 @@ select {
 .chat-view {
   background: #fff;
   border: 1px solid #e2d8d2;
-  display: grid;
-  grid-template-rows: auto auto auto minmax(120px, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   height: min(420px, calc(100vh - 330px));
   min-height: 360px;
 }
@@ -568,17 +578,20 @@ select {
 .chat-messages {
   align-content: start;
   background: #f8f4f1;
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   padding: 10px;
 }
 
 .chat-composer {
+  align-items: center;
   background: #fff;
   border-top: 1px solid #eadfd9;
   display: grid;
   gap: 8px;
   grid-template-columns: minmax(0, 1fr) auto;
+  flex: 0 0 auto;
   padding: 9px;
 }
 
@@ -814,6 +827,7 @@ select {
   position: fixed;
   touch-action: manipulation;
   z-index: 3000;
+  -webkit-overflow-scrolling: touch;
 }
 
 .login-modal {
@@ -1135,14 +1149,23 @@ select {
 
 @media (max-width: 720px) {
   .map-shell {
-    height: calc(100vh - 102px);
+    height: calc(100dvh - 102px);
     min-height: 620px;
+  }
+
+  .map-shell-login-open {
+    height: 100dvh;
+    inset: 0;
+    min-height: 0;
+    overflow: hidden;
+    position: fixed;
+    width: 100vw;
   }
 
   .off-menu {
     bottom: auto;
     left: 12px;
-    max-height: calc(100vh - 210px);
+    max-height: calc(100dvh - 210px);
     max-width: calc(100vw - 24px);
     overflow: visible;
     top: 12px;
@@ -1154,7 +1177,7 @@ select {
 
   .off-menu-mobile-open {
     bottom: auto;
-    height: 100vh;
+    height: 100dvh;
     inset: 0;
     left: 0;
     max-height: none;
@@ -1215,17 +1238,17 @@ select {
   }
 
   .off-panel {
-    max-height: calc(100vh - 382px);
+    max-height: calc(100dvh - 382px);
   }
 
   .off-menu-mobile-open .off-panel {
     -webkit-overflow-scrolling: touch;
-    max-height: calc(100vh - 184px);
+    max-height: calc(100dvh - 184px);
     overscroll-behavior: contain;
   }
 
   .off-menu-mobile-open .chat-view {
-    height: calc(100vh - 212px);
+    height: calc(100dvh - 212px);
     min-height: 0;
   }
 
@@ -1234,6 +1257,9 @@ select {
   }
 
   .login-modal {
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
     padding: 18px;
+    width: min(100%, 440px);
   }
 }

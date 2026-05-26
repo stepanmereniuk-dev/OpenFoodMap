@@ -886,6 +886,26 @@ export default function FoodMap() {
     [people],
   );
 
+  useEffect(() => {
+    if (hasProfile) {
+      return;
+    }
+
+    const bodyOverflow = document.body.style.overflow;
+    const htmlOverflow = document.documentElement.style.overflow;
+    const bodyTouchAction = document.body.style.touchAction;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+
+    return () => {
+      document.body.style.overflow = bodyOverflow;
+      document.documentElement.style.overflow = htmlOverflow;
+      document.body.style.touchAction = bodyTouchAction;
+    };
+  }, [hasProfile]);
+
   const visibleEvents = useMemo(() => {
     const filtered = events.filter((eventItem) => {
       const itemMessages = messages
@@ -1547,16 +1567,6 @@ export default function FoodMap() {
       <section
         className={isMobileMenuOpen ? "off-menu off-menu-mobile-open" : "off-menu"}
         aria-label="Menu OFF"
-        onClickCapture={(event) => {
-          if (isMobileMenuOpen) {
-            event.stopPropagation();
-          }
-        }}
-        onPointerDownCapture={(event) => {
-          if (isMobileMenuOpen) {
-            event.stopPropagation();
-          }
-        }}
         onTouchMoveCapture={(event) => {
           if (isMobileMenuOpen) {
             event.stopPropagation();
