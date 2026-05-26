@@ -499,13 +499,13 @@ select {
 }
 
 .ghost-button:hover {
-  background: var(--off-cappuccino);
-  color: var(--off-brown);
+  background: #622000;
+  color: #fff;
 }
 
 .ghost-button:hover *,
 .ghost-button:focus-visible * {
-  color: var(--off-brown);
+  color: #fff;
 }
 
 .chat-view {
@@ -701,13 +701,13 @@ select {
 
 .chat-actions .ghost-button:hover,
 .chat-actions .ghost-button:focus-visible {
-  background: var(--off-cappuccino);
-  color: var(--off-brown);
+  background: #622000;
+  color: #fff;
 }
 
 .chat-actions .ghost-button:hover *,
 .chat-actions .ghost-button:focus-visible * {
-  color: var(--off-brown);
+  color: #fff;
 }
 
 .chat-actions select,
@@ -852,6 +852,17 @@ select {
   color: var(--off-brown);
 }
 
+.config-panel > .ghost-button:hover,
+.config-panel > .ghost-button:focus-visible {
+  background: #622000;
+  color: #fff;
+}
+
+.config-panel > .ghost-button:hover *,
+.config-panel > .ghost-button:focus-visible * {
+  color: #fff;
+}
+
 .management-block {
   background: #fff;
   border: 1px solid #d8cbc5;
@@ -918,14 +929,15 @@ select {
 .member-list button:focus-visible,
 .exact-picker button:hover,
 .exact-picker button:focus-visible {
-  background: var(--off-cappuccino);
+  background: #622000;
+  color: #fff;
 }
 
 .member-list button:hover *,
 .member-list button:focus-visible *,
 .exact-picker button:hover *,
 .exact-picker button:focus-visible * {
-  color: var(--off-brown);
+  color: #fff;
 }
 
 .exact-picker {
@@ -1148,15 +1160,15 @@ select {
 
 .modal-close:hover,
 .modal-close:focus-visible {
-  background: #cfac9e;
-  color: #333;
+  background: #622000;
+  color: #fff;
   outline: 2px solid rgb(255 135 20 / 35%);
   outline-offset: 2px;
 }
 
 .modal-close:hover *,
 .modal-close:focus-visible * {
-  color: #333;
+  color: #fff;
 }
 
 .modal-actions {
@@ -1202,13 +1214,13 @@ select {
 
 .modal-actions .ghost-button:hover,
 .modal-actions .ghost-button:focus-visible {
-  background: var(--off-cappuccino);
-  color: var(--off-brown);
+  background: #622000;
+  color: #fff;
 }
 
 .modal-actions .ghost-button:hover *,
 .modal-actions .ghost-button:focus-visible * {
-  color: var(--off-brown);
+  color: #fff;
 }
 
 .log-list {
