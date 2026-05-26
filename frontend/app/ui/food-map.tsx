@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import L from "leaflet";
-import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, Marker, TileLayer, useMap, useMapEvents, ZoomControl } from "react-leaflet";
 
 type Person = {
   id: number;
@@ -85,6 +85,25 @@ type Report = {
   createdAt: string;
 };
 
+type AuditLog = {
+  id: number;
+  label: string;
+  detail: string;
+  createdAt: string;
+};
+
+type ExactPersonInputState = {
+  candidate: Person | null;
+  completion: string | null;
+  message: string | null;
+};
+
+type ExactThreadInputState = {
+  candidate: PrivateThread | null;
+  completion: string | null;
+  message: string | null;
+};
+
 type PersonGroup = {
   id: string;
   label: string;
@@ -102,8 +121,9 @@ const threadsStorageKey = "open-food-map-threads";
 const eventsStorageKey = "open-food-map-events";
 const messagesStorageKey = "open-food-map-messages";
 const reportsStorageKey = "open-food-map-reports";
+const logsStorageKey = "open-food-map-logs";
 
-const fallbackAuthor = { id: 0, name: "Session locale" };
+const fallbackAuthor = { id: 0, name: "Session" };
 let localIdCounter = 200_000;
 
 function createLocalId() {
@@ -279,24 +299,20 @@ function sortByMode<T extends { title: string; createdAt: string }>(
   });
 }
 
-function eventMatchesScope(eventItem: MapEvent, scope: SelectedScope) {
-  if (scope.level === "global" || eventItem.scope.level === "global") {
+function itemScopeMatches(scope: SelectedScope, selectedScope: SelectedScope) {
+  if (selectedScope.level === "global" || scope.level === "global") {
     return true;
   }
 
-  if (scope.level === "country") {
-    return eventItem.scope.country === scope.country;
+  if (selectedScope.level === "country") {
+    return scope.country === selectedScope.country;
   }
 
-  if (scope.level === "region") {
-    return eventItem.scope.country === scope.country && eventItem.scope.region === scope.region;
+  if (selectedScope.level === "region") {
+    return scope.country === selectedScope.country && scope.region === selectedScope.region;
   }
 
-  return (
-    eventItem.scope.country === scope.country &&
-    eventItem.scope.region === scope.region &&
-    eventItem.scope.city === scope.city
-  );
+  return scope.country === selectedScope.country && scope.region === selectedScope.region && scope.city === selectedScope.city;
 }
 
 function randomInsideCity(center: [number, number], boundingBox?: [number, number, number, number]) {
@@ -415,7 +431,7 @@ async function geocodeLocation(place: string) {
       city: place,
       country: "France",
       position: randomInsideCity(localPlaces.france.position),
-      region: "Local",
+      region: "",
     };
   }
 
@@ -854,6 +870,7 @@ export default function FoodMap() {
   );
   const [messages, setMessages] = useState<Message[]>(() => readLocal<Message[]>(messagesStorageKey, []));
   const [reports, setReports] = useState<Report[]>(() => readLocal<Report[]>(reportsStorageKey, []));
+  const [logs, setLogs] = useState<AuditLog[]>(() => readLocal<AuditLog[]>(logsStorageKey, []));
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
   const [pendingOpenIds, setPendingOpenIds] = useState<number[] | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("events");
@@ -871,11 +888,13 @@ export default function FoodMap() {
   const [form, setForm] = useState({ invisible: false, place: "", pseudo: "" });
   const [eventForm, setEventForm] = useState({ date: "", title: "" });
   const [channelTitle, setChannelTitle] = useState("");
-  const [threadForm, setThreadForm] = useState({ memberId: "", title: "" });
+  const [threadForm, setThreadForm] = useState({ memberQuery: "", title: "" });
   const [messageDrafts, setMessageDrafts] = useState<Record<string, string>>({});
-  const [addAdminId, setAddAdminId] = useState("");
-  const [addMemberId, setAddMemberId] = useState("");
+  const [addAdminQuery, setAddAdminQuery] = useState("");
+  const [addMemberQuery, setAddMemberQuery] = useState("");
+  const [profileThreadQuery, setProfileThreadQuery] = useState("");
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const hasProfile = profile !== null;
@@ -885,6 +904,25 @@ export default function FoodMap() {
     () => [...people].sort((first, second) => second.editCount - first.editCount),
     [people],
   );
+  const knownPeople = useMemo(() => {
+    if (!profile || people.some((person) => person.id === profile.id)) {
+      return people;
+    }
+
+    return [
+      ...people,
+      {
+        id: profile.id,
+        name: profile.pseudo,
+        city: profile.city || profile.country,
+        region: profile.region || profile.country,
+        country: profile.country,
+        color: profile.color,
+        position: profile.position ?? localPlaces.france.position,
+        editCount: stableEditCount(profile.id, profile.pseudo),
+      },
+    ];
+  }, [people, profile]);
 
   useEffect(() => {
     if (hasProfile) {
@@ -916,7 +954,7 @@ export default function FoodMap() {
         textIncludes(value, search),
       );
 
-      return eventMatchesScope(eventItem, selectedScope) && matchesSearch;
+      return itemScopeMatches(eventItem.scope, selectedScope) && matchesSearch;
     });
 
     return sortByMode(filtered, sortMode, (eventItem) => itemActivity(messages, "event", eventItem.id));
@@ -929,11 +967,14 @@ export default function FoodMap() {
         .map((message) => message.body)
         .join(" ");
 
-      return [channel.title, scopeLabel(channel.scope), itemMessages].some((value) => textIncludes(value, search));
+      return (
+        itemScopeMatches(channel.scope, selectedScope) &&
+        [channel.title, scopeLabel(channel.scope), itemMessages].some((value) => textIncludes(value, search))
+      );
     });
 
     return sortByMode(filtered, sortMode, (channel) => itemActivity(messages, "channel", channel.id));
-  }, [channels, messages, search, sortMode]);
+  }, [channels, messages, search, selectedScope, sortMode]);
 
   const visibleThreads = useMemo(() => {
     const filtered = threads.filter((thread) => {
@@ -991,6 +1032,10 @@ export default function FoodMap() {
     window.localStorage.setItem(reportsStorageKey, JSON.stringify(reports));
   }, [reports]);
 
+  useEffect(() => {
+    window.localStorage.setItem(logsStorageKey, JSON.stringify(logs));
+  }, [logs]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus(null);
@@ -1009,7 +1054,7 @@ export default function FoodMap() {
           city: place,
           country: "France",
           position: randomInsideCity(localPlaces.france.position),
-          region: "Local",
+          region: "",
         };
       }
       const profileId = createLocalId();
@@ -1123,8 +1168,7 @@ export default function FoodMap() {
 
   function createThread(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const memberId = Number(threadForm.memberId);
-    const member = people.find((person) => person.id === memberId);
+    const member = exactPersonInputState(threadForm.memberQuery, [currentUser.id]).candidate;
 
     if (!member) {
       return;
@@ -1142,7 +1186,7 @@ export default function FoodMap() {
       },
     ]);
     setSelectedThreadId(id);
-    setThreadForm({ memberId: "", title: "" });
+    setThreadForm({ memberQuery: "", title: "" });
   }
 
   function openPrivateThread(person: Person) {
@@ -1185,12 +1229,58 @@ export default function FoodMap() {
               ...thread,
               memberIds: Array.from(new Set([...thread.memberIds, personId])),
               roles: { ...thread.roles, [personId]: thread.roles[personId] ?? "member" },
-              title: thread.title.startsWith("Discussion avec") ? "Groupe local OFF" : thread.title,
+              title: thread.title.startsWith("Discussion avec") ? "Groupe OFF" : thread.title,
             }
           : thread,
       ),
     );
-    setAddMemberId("");
+    setAddMemberQuery("");
+  }
+
+  function leaveThread(threadId: number) {
+    const thread = threads.find((currentThread) => currentThread.id === threadId);
+
+    if (!thread || thread.roles[currentUser.id] === "creator") {
+      return;
+    }
+
+    setThreads((currentThreads) =>
+      currentThreads.map((currentThread) => {
+        if (currentThread.id !== threadId) {
+          return currentThread;
+        }
+
+        const nextRoles = { ...currentThread.roles };
+        delete nextRoles[currentUser.id];
+
+        return {
+          ...currentThread,
+          memberIds: currentThread.memberIds.filter((memberId) => memberId !== currentUser.id),
+          roles: nextRoles,
+        };
+      }),
+    );
+    setStatus("Discussion quittée.");
+    closeChat();
+  }
+
+  function removeMemberFromThread(threadId: number, personId: number) {
+    setThreads((currentThreads) =>
+      currentThreads.map((thread) => {
+        if (thread.id !== threadId || thread.roles[personId] === "creator") {
+          return thread;
+        }
+
+        const nextRoles = { ...thread.roles };
+        delete nextRoles[personId];
+
+        return {
+          ...thread,
+          memberIds: thread.memberIds.filter((memberId) => memberId !== personId),
+          roles: nextRoles,
+        };
+      }),
+    );
   }
 
   function personName(personId: number) {
@@ -1198,7 +1288,68 @@ export default function FoodMap() {
       return currentUser.name;
     }
 
-    return people.find((person) => person.id === personId)?.name ?? `Utilisateur ${personId}`;
+    return knownPeople.find((person) => person.id === personId)?.name ?? `Utilisateur ${personId}`;
+  }
+
+  function exactPersonInputState(query: string, excludedIds: number[] = []): ExactPersonInputState {
+    const normalizedQuery = normalizeKey(query);
+    const excluded = new Set(excludedIds);
+    const admissiblePeople = knownPeople.filter((person) => !excluded.has(person.id));
+    const candidate = normalizedQuery
+      ? admissiblePeople.find((person) => normalizeKey(person.name) === normalizedQuery) ?? null
+      : null;
+    const completion = normalizedQuery
+      ? admissiblePeople.find((person) => normalizeKey(person.name).startsWith(normalizedQuery))?.name ?? null
+      : null;
+
+    if (!normalizedQuery) {
+      return { candidate: null, completion: null, message: null };
+    }
+
+    if (candidate) {
+      return { candidate, completion: candidate.name, message: `${candidate.name} reconnu` };
+    }
+
+    if (knownPeople.some((person) => normalizeKey(person.name) === normalizedQuery)) {
+      return { candidate: null, completion: null, message: "Déjà ajouté" };
+    }
+
+    return { candidate: null, completion, message: "Pseudo introuvable" };
+  }
+
+  function exactThreadInputState(query: string): ExactThreadInputState {
+    const normalizedQuery = normalizeKey(query);
+    const availableThreads = selectedPerson
+      ? threads.filter((thread) => !thread.memberIds.includes(selectedPerson.id))
+      : threads;
+    const candidate = normalizedQuery
+      ? availableThreads.find((thread) => normalizeKey(thread.title) === normalizedQuery) ?? null
+      : null;
+    const completion = normalizedQuery
+      ? availableThreads.find((thread) => normalizeKey(thread.title).startsWith(normalizedQuery))?.title ?? null
+      : null;
+
+    if (!normalizedQuery) {
+      return { candidate: null, completion: null, message: null };
+    }
+
+    if (candidate) {
+      return { candidate, completion: candidate.title, message: `${candidate.title} reconnue` };
+    }
+
+    if (threads.some((thread) => normalizeKey(thread.title) === normalizedQuery)) {
+      return { candidate: null, completion: null, message: "Déjà ajouté" };
+    }
+
+    return { candidate: null, completion, message: "Discussion introuvable" };
+  }
+
+  function addLog(label: string, detail: string) {
+    setLogs((currentLogs) => [
+      { id: createLocalId(), label, detail, createdAt: nowIso() },
+      ...currentLogs,
+    ]);
+    setIsLogModalOpen(true);
   }
 
   function addAdminToEvent(eventId: number, personId: number) {
@@ -1213,7 +1364,17 @@ export default function FoodMap() {
           : eventItem,
       ),
     );
-    setAddAdminId("");
+    setAddAdminQuery("");
+  }
+
+  function removeAdminFromEvent(eventId: number, personId: number) {
+    setEvents((currentEvents) =>
+      currentEvents.map((eventItem) =>
+        eventItem.id === eventId && eventItem.creatorId !== personId
+          ? { ...eventItem, admins: (eventItem.admins ?? [eventItem.creatorId]).filter((adminId) => adminId !== personId) }
+          : eventItem,
+      ),
+    );
   }
 
   function addAdminToChannel(channelId: number, personId: number) {
@@ -1228,7 +1389,17 @@ export default function FoodMap() {
           : channel,
       ),
     );
-    setAddAdminId("");
+    setAddAdminQuery("");
+  }
+
+  function removeAdminFromChannel(channelId: number, personId: number) {
+    setChannels((currentChannels) =>
+      currentChannels.map((channel) =>
+        channel.id === channelId && channel.creatorId !== personId
+          ? { ...channel, admins: (channel.admins ?? [channel.creatorId]).filter((adminId) => adminId !== personId) }
+          : channel,
+      ),
+    );
   }
 
   function promoteThreadAdmin(threadId: number, personId: number) {
@@ -1247,7 +1418,17 @@ export default function FoodMap() {
           : thread,
       ),
     );
-    setAddAdminId("");
+    setAddAdminQuery("");
+  }
+
+  function demoteThreadAdmin(threadId: number, personId: number) {
+    setThreads((currentThreads) =>
+      currentThreads.map((thread) =>
+        thread.id === threadId && thread.roles[personId] !== "creator"
+          ? { ...thread, roles: { ...thread.roles, [personId]: "member" } }
+          : thread,
+      ),
+    );
   }
 
   function updateEventConfig(eventId: number, updates: Partial<Pick<MapEvent, "date" | "title">>) {
@@ -1273,12 +1454,12 @@ export default function FoodMap() {
       ...currentReports,
       { id: createLocalId(), personId, reporterId: currentUser.id, createdAt: nowIso() },
     ]);
-    setStatus("Signalement enregistré localement.");
+    addLog("Signalement", `${personName(personId)} signalé par ${currentUser.name}`);
+    setStatus("Signalement enregistré.");
   }
 
   function handlePersonSelect(person: Person) {
     setSelectedPersonId(person.id);
-    setIsMobileMenuOpen(true);
   }
 
   function renderTools() {
@@ -1333,17 +1514,101 @@ export default function FoodMap() {
     );
   }
 
-  function renderAdminPicker(label: string, value: string, onChange: (value: string) => void) {
+  function renderExactPersonInput({
+    actionLabel,
+    excludedIds = [],
+    label,
+    onPick,
+    query,
+    setQuery,
+  }: {
+    actionLabel?: string;
+    excludedIds?: number[];
+    label: string;
+    onPick?: (person: Person) => void;
+    query: string;
+    setQuery: (query: string) => void;
+  }) {
+    const state = exactPersonInputState(query, excludedIds);
+    const completionSuffix =
+      state.completion && normalizeKey(state.completion).startsWith(normalizeKey(query))
+        ? state.completion.slice(query.length)
+        : "";
+
     return (
-      <select aria-label={label} onChange={(event) => onChange(event.target.value)} value={value}>
-        <option value="">{label}</option>
-        {people.map((person) => (
-          <option key={person.id} value={person.id}>{person.name}</option>
-        ))}
-        {profile && !people.some((person) => person.id === profile.id) && (
-          <option value={profile.id}>{profile.pseudo}</option>
+      <div className={actionLabel ? "exact-picker" : "exact-picker exact-picker-single"}>
+        <div className="exact-input-wrap">
+          <input
+            aria-label={label}
+            autoComplete="off"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={label}
+            value={query}
+          />
+          {query && completionSuffix && (
+            <span aria-hidden="true" className="exact-completion">
+              <span className="exact-completion-prefix">{query}</span>
+              {completionSuffix}
+            </span>
+          )}
+        </div>
+        {actionLabel && (
+          <button
+            disabled={!state.candidate}
+            onClick={() => {
+              if (state.candidate && onPick) {
+                onPick(state.candidate);
+                setQuery("");
+              }
+            }}
+            type="button"
+          >
+            {actionLabel}
+          </button>
         )}
-      </select>
+        {state.message && <small>{state.message}</small>}
+      </div>
+    );
+  }
+
+  function renderThreadSearch() {
+    const state = exactThreadInputState(profileThreadQuery);
+    const completionSuffix =
+      state.completion && normalizeKey(state.completion).startsWith(normalizeKey(profileThreadQuery))
+        ? state.completion.slice(profileThreadQuery.length)
+        : "";
+
+    return (
+      <div className="exact-picker">
+        <div className="exact-input-wrap">
+          <input
+            aria-label="Nom exact de discussion"
+            autoComplete="off"
+            onChange={(event) => setProfileThreadQuery(event.target.value)}
+            placeholder="Nom exact de discussion"
+            value={profileThreadQuery}
+          />
+          {profileThreadQuery && completionSuffix && (
+            <span aria-hidden="true" className="exact-completion">
+              <span className="exact-completion-prefix">{profileThreadQuery}</span>
+              {completionSuffix}
+            </span>
+          )}
+        </div>
+        <button
+          disabled={!state.candidate || !selectedPerson}
+          onClick={() => {
+            if (state.candidate && selectedPerson) {
+              addMemberToThread(state.candidate.id, selectedPerson.id);
+              setProfileThreadQuery("");
+            }
+          }}
+          type="button"
+        >
+          Ajouter
+        </button>
+        {state.message && <small>{state.message}</small>}
+      </div>
     );
   }
 
@@ -1378,21 +1643,36 @@ export default function FoodMap() {
             <strong>{scopeLabel(openedEvent.scope)}</strong>
             <span>Créateur</span>
             <strong>{personName(openedEvent.creatorId)}</strong>
-            <span>Admins</span>
-            <strong>{admins.map(personName).join(", ")}</strong>
           </div>
-          <div className="config-row">
-            {renderAdminPicker("Ajouter admin évènement", addAdminId, setAddAdminId)}
-            <button onClick={() => addAdminToEvent(openedEvent.id, Number(addAdminId))} type="button">
-              Ajouter admin
-            </button>
+          <div className="management-block">
+            <h3>Admins</h3>
+            <div className="member-list">
+              {admins.map((adminId) => (
+                <div key={adminId}>
+                  <span>{personName(adminId)}</span>
+                  {adminId !== openedEvent.creatorId && (
+                    <button onClick={() => removeAdminFromEvent(openedEvent.id, adminId)} type="button">
+                      Supprimer
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {renderExactPersonInput({
+              actionLabel: "Ajouter",
+              excludedIds: admins,
+              label: "Pseudo exact admin",
+              onPick: (person) => addAdminToEvent(openedEvent.id, person.id),
+              query: addAdminQuery,
+              setQuery: setAddAdminQuery,
+            })}
           </div>
           <button
             className="ghost-button"
-            onClick={() => setStatus("Action de modération évènement enregistrée localement.")}
+            onClick={() => addLog("Évènement", `Action de modération sur ${openedEvent.title}`)}
             type="button"
           >
-            Journaliser modération
+            Ouvrir le journal
           </button>
         </section>
       );
@@ -1420,21 +1700,36 @@ export default function FoodMap() {
             <strong>{scopeLabel(openedChannel.scope)}</strong>
             <span>Créateur</span>
             <strong>{personName(openedChannel.creatorId)}</strong>
-            <span>Admins</span>
-            <strong>{admins.map(personName).join(", ")}</strong>
           </div>
-          <div className="config-row">
-            {renderAdminPicker("Ajouter admin canal", addAdminId, setAddAdminId)}
-            <button onClick={() => addAdminToChannel(openedChannel.id, Number(addAdminId))} type="button">
-              Ajouter admin
-            </button>
+          <div className="management-block">
+            <h3>Admins</h3>
+            <div className="member-list">
+              {admins.map((adminId) => (
+                <div key={adminId}>
+                  <span>{personName(adminId)}</span>
+                  {adminId !== openedChannel.creatorId && (
+                    <button onClick={() => removeAdminFromChannel(openedChannel.id, adminId)} type="button">
+                      Supprimer
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {renderExactPersonInput({
+              actionLabel: "Ajouter",
+              excludedIds: admins,
+              label: "Pseudo exact admin",
+              onPick: (person) => addAdminToChannel(openedChannel.id, person.id),
+              query: addAdminQuery,
+              setQuery: setAddAdminQuery,
+            })}
           </div>
           <button
             className="ghost-button"
-            onClick={() => setStatus("Action de modération canal enregistrée localement.")}
+            onClick={() => addLog("Canal", `Action de modération sur ${openedChannel.title}`)}
             type="button"
           >
-            Journaliser modération
+            Ouvrir le journal
           </button>
         </section>
       );
@@ -1459,34 +1754,65 @@ export default function FoodMap() {
           <div className="config-grid">
             <span>Type</span>
             <strong>{openedThread.memberIds.length > 2 ? "Groupe" : "Privé"}</strong>
-            <span>Membres</span>
-            <strong>{openedThread.memberIds.map(personName).join(", ")}</strong>
-            <span>Admins</span>
-            <strong>
+          </div>
+          <div className="management-block">
+            <h3>Membres</h3>
+            <div className="member-list">
+              {openedThread.memberIds.map((memberId) => (
+                <div key={memberId}>
+                  <span>{personName(memberId)}</span>
+                  <small>{openedThread.roles[memberId] === "creator" ? "Créateur" : openedThread.roles[memberId] === "admin" ? "Admin" : "Membre"}</small>
+                  {openedThread.roles[memberId] !== "creator" && (
+                    <button onClick={() => removeMemberFromThread(openedThread.id, memberId)} type="button">
+                      Supprimer
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {renderExactPersonInput({
+              actionLabel: "Ajouter",
+              excludedIds: openedThread.memberIds,
+              label: "Pseudo exact membre",
+              onPick: (person) => addMemberToThread(openedThread.id, person.id),
+              query: addMemberQuery,
+              setQuery: setAddMemberQuery,
+            })}
+          </div>
+          <div className="management-block">
+            <h3>Admins</h3>
+            <div className="member-list">
               {openedThread.memberIds
                 .filter((memberId) => openedThread.roles[memberId] === "creator" || openedThread.roles[memberId] === "admin")
-                .map(personName)
-                .join(", ")}
-            </strong>
-          </div>
-          <div className="config-row">
-            {renderAdminPicker("Ajouter membre", addMemberId, setAddMemberId)}
-            <button onClick={() => addMemberToThread(openedThread.id, Number(addMemberId))} type="button">
-              Ajouter membre
-            </button>
-          </div>
-          <div className="config-row">
-            {renderAdminPicker("Promouvoir admin", addAdminId, setAddAdminId)}
-            <button onClick={() => promoteThreadAdmin(openedThread.id, Number(addAdminId))} type="button">
-              Promouvoir
-            </button>
+                .map((memberId) => (
+                  <div key={memberId}>
+                    <span>{personName(memberId)}</span>
+                    <small>{openedThread.roles[memberId] === "creator" ? "Créateur" : "Admin"}</small>
+                    {openedThread.roles[memberId] !== "creator" && (
+                      <button onClick={() => demoteThreadAdmin(openedThread.id, memberId)} type="button">
+                        Retirer admin
+                      </button>
+                    )}
+                  </div>
+                ))}
+            </div>
+            {renderExactPersonInput({
+              actionLabel: "Promouvoir",
+              excludedIds: openedThread.memberIds.filter(
+                (memberId) => openedThread.roles[memberId] === "creator" || openedThread.roles[memberId] === "admin",
+              ),
+              label: "Pseudo exact admin",
+              onPick: (person) => promoteThreadAdmin(openedThread.id, person.id),
+              query: addAdminQuery,
+              setQuery: setAddAdminQuery,
+            })}
           </div>
           <button
             className="ghost-button"
-            onClick={() => setStatus("Action de modération discussion enregistrée localement.")}
+            onClick={() => addLog("Discussion", `Action de modération sur ${openedThread.title}`)}
             type="button"
           >
-            Journaliser modération
+            Ouvrir le journal
           </button>
         </section>
       );
@@ -1497,11 +1823,13 @@ export default function FoodMap() {
 
   function renderChatView({
     actions,
+    afterConfigActions,
     meta,
     targetId,
     targetType,
     title,
   }: {
+    afterConfigActions?: ReactNode;
     actions?: ReactNode;
     meta: string;
     targetId: number;
@@ -1518,16 +1846,20 @@ export default function FoodMap() {
             <p className="eyebrow">{meta}</p>
             <h2>{title}</h2>
           </div>
+        </header>
+        <div className="chat-actions">
+          {actions}
+          {afterConfigActions}
           <button
+            aria-label="Configuration"
             aria-pressed={isConfigOpen}
             className="chat-config-button"
             onClick={() => setIsConfigOpen((isOpen) => !isOpen)}
             type="button"
           >
-            Config
+            ⚙️
           </button>
-        </header>
-        {actions && <div className="chat-actions">{actions}</div>}
+        </div>
         {isConfigOpen && renderConfigPanel()}
         <div className="message-list chat-messages">
           {itemMessages.length > 0 ? (
@@ -1548,7 +1880,8 @@ export default function FoodMap() {
 
   return (
     <main className={hasProfile ? "map-shell" : "map-shell map-shell-login-open"}>
-      <MapContainer center={[46.8, 2.2]} zoom={5} scrollWheelZoom className="leaflet-map">
+      <MapContainer center={[46.8, 2.2]} zoom={5} zoomControl={false} scrollWheelZoom className="leaflet-map">
+        <ZoomControl position="topright" />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -1592,7 +1925,7 @@ export default function FoodMap() {
             role="tab"
             type="button"
           >
-            <span className="off-tab-icon" aria-hidden="true">●</span>
+            <span className="material-icons off-tab-icon" aria-hidden="true">event</span>
             Évènements
           </button>
           <button
@@ -1601,7 +1934,7 @@ export default function FoodMap() {
             role="tab"
             type="button"
           >
-            <span className="off-tab-icon" aria-hidden="true">●</span>
+            <span className="material-icons off-tab-icon" aria-hidden="true">forum</span>
             Canaux
           </button>
           <button
@@ -1610,55 +1943,12 @@ export default function FoodMap() {
             role="tab"
             type="button"
           >
-            <span className="off-tab-icon" aria-hidden="true">●</span>
+            <span className="material-icons off-tab-icon" aria-hidden="true">chat</span>
             Discussion
           </button>
         </div>
 
         <div className="off-panel">
-          {selectedPerson && !isChatOpen && (
-            <article className="profile-card">
-              <div>
-                <p className="eyebrow">Profil local</p>
-                <h2>{selectedPerson.name}</h2>
-                <p>
-                  {selectedPerson.city}, {selectedPerson.region}, {selectedPerson.country}
-                </p>
-              </div>
-              <dl>
-                <div>
-                  <dt>Éditions</dt>
-                  <dd>{selectedPerson.editCount}</dd>
-                </div>
-                <div>
-                  <dt>Rang local</dt>
-                  <dd>#{rankedPeople.findIndex((person) => person.id === selectedPerson.id) + 1}</dd>
-                </div>
-              </dl>
-              <div className="action-row">
-                <button onClick={() => openPrivateThread(selectedPerson)} type="button">Message privé</button>
-                <select
-                  aria-label="Ajouter à une discussion"
-                  onChange={(event) => {
-                    const threadId = Number(event.target.value);
-                    if (threadId) {
-                      addMemberToThread(threadId, selectedPerson.id);
-                    }
-                    event.target.value = "";
-                  }}
-                >
-                  <option value="">Ajouter à une discussion</option>
-                  {threads.map((thread) => (
-                    <option key={thread.id} value={thread.id}>{thread.title}</option>
-                  ))}
-                </select>
-                <button className="ghost-button" onClick={() => reportPerson(selectedPerson.id)} type="button">
-                  Signaler
-                </button>
-              </div>
-            </article>
-          )}
-
           {status && <strong className="form-status social-status">{status}</strong>}
           {!isChatOpen && renderTools()}
 
@@ -1696,7 +1986,10 @@ export default function FoodMap() {
               actions: (
                 <button
                   className="ghost-button"
-                  onClick={() => setStatus("Signalement du canal enregistré localement.")}
+                  onClick={() => {
+                    addLog("Signalement", `Canal signalé : ${openedChannel.title}`);
+                    setStatus("Signalement du canal enregistré.");
+                  }}
                   type="button"
                 >
                   Signaler canal
@@ -1713,12 +2006,21 @@ export default function FoodMap() {
               actions: (
                 <button
                   className="ghost-button"
-                  onClick={() => setStatus("Signalement de la discussion enregistré localement.")}
+                  onClick={() => {
+                    addLog("Signalement", `Discussion signalée : ${openedThread.title}`);
+                    setStatus("Signalement de la discussion enregistré.");
+                  }}
                   type="button"
                 >
                   Signaler discussion
                 </button>
               ),
+              afterConfigActions:
+                openedThread.roles[currentUser.id] !== "creator" ? (
+                  <button className="ghost-button" onClick={() => leaveThread(openedThread.id)} type="button">
+                    Quitter
+                  </button>
+                ) : null,
               meta: `${openedThread.memberIds.length > 2 ? "Groupe" : "Privé"} · ${openedThread.memberIds.length} membre(s)`,
               targetId: openedThread.id,
               targetType: "thread",
@@ -1795,7 +2097,7 @@ export default function FoodMap() {
                       </article>
                     ))
                 ) : (
-                  <p className="off-empty">Aucun canal local.</p>
+                  <p className="off-empty">Aucun canal.</p>
                 )}
               </div>
             </div>
@@ -1810,18 +2112,15 @@ export default function FoodMap() {
                   placeholder="Nom de discussion"
                   value={threadForm.title}
                 />
-                <select
-                  aria-label="Membre"
-                  onChange={(event) => setThreadForm({ ...threadForm, memberId: event.target.value })}
-                  required
-                  value={threadForm.memberId}
-                >
-                  <option value="">Membre</option>
-                  {people.map((person) => (
-                    <option key={person.id} value={person.id}>{person.name}</option>
-                  ))}
-                </select>
-                <button type="submit">Créer</button>
+                {renderExactPersonInput({
+                  excludedIds: [currentUser.id],
+                  label: "Pseudo exact membre",
+                  query: threadForm.memberQuery,
+                  setQuery: (memberQuery) => setThreadForm({ ...threadForm, memberQuery }),
+                })}
+                <button disabled={!exactPersonInputState(threadForm.memberQuery, [currentUser.id]).candidate} type="submit">
+                  Créer
+                </button>
               </form>
               <div className="event-list">
                 {visibleThreads.length > 0 ? (
@@ -1841,13 +2140,93 @@ export default function FoodMap() {
                       </article>
                     ))
                 ) : (
-                  <p className="off-empty">Aucune discussion locale.</p>
+                  <p className="off-empty">Aucune discussion.</p>
                 )}
               </div>
             </div>
           )}
         </div>
       </section>
+
+      {selectedPerson && (
+        <div className="map-modal-backdrop" role="presentation">
+          <section aria-label="Profil" aria-modal="true" className="profile-modal" role="dialog">
+            <button
+              aria-label="Fermer le profil"
+              className="modal-close profile-modal-close"
+              onClick={() => setSelectedPersonId(null)}
+              type="button"
+            >
+              <span className="modal-close-desktop" aria-hidden="true">×</span>
+              <span className="modal-close-mobile" aria-hidden="true">‹</span>
+            </button>
+            <div>
+              <p className="eyebrow">Profil</p>
+              <h2>{selectedPerson.name}</h2>
+              <p>{[selectedPerson.city, selectedPerson.region, selectedPerson.country].filter(Boolean).join(", ")}</p>
+            </div>
+            <dl>
+              <div>
+                <dt>Éditions</dt>
+                <dd>{selectedPerson.editCount}</dd>
+              </div>
+              <div>
+                <dt>Rang</dt>
+                <dd>#{rankedPeople.findIndex((person) => person.id === selectedPerson.id) + 1}</dd>
+              </div>
+            </dl>
+            <div className="modal-actions">
+              <button
+                onClick={() => {
+                  openPrivateThread(selectedPerson);
+                  setSelectedPersonId(null);
+                  setIsMobileMenuOpen(true);
+                }}
+                type="button"
+              >
+                Message privé
+              </button>
+              <button className="ghost-button" onClick={() => reportPerson(selectedPerson.id)} type="button">
+                Signaler
+              </button>
+            </div>
+            <div className="management-block">
+              <h3>Ajouter à une discussion</h3>
+              {renderThreadSearch()}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {isLogModalOpen && (
+        <div className="map-modal-backdrop" role="presentation">
+          <section aria-label="Journal" aria-modal="true" className="log-modal" role="dialog">
+            <button
+              aria-label="Fermer le journal"
+              className="modal-close"
+              onClick={() => setIsLogModalOpen(false)}
+              type="button"
+            >
+              ×
+            </button>
+            <p className="eyebrow">Journal</p>
+            <h2>Actions</h2>
+            <div className="log-list">
+              {logs.length > 0 ? (
+                logs.map((log) => (
+                  <article key={log.id}>
+                    <time>{new Date(log.createdAt).toLocaleString("fr-FR")}</time>
+                    <strong>{log.label}</strong>
+                    <p>{log.detail}</p>
+                  </article>
+                ))
+              ) : (
+                <p className="off-empty">Aucune action enregistrée.</p>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
 
       {hasProfile && (
         <button
@@ -1864,7 +2243,7 @@ export default function FoodMap() {
         <div className="login-backdrop" role="presentation">
           <section
             className="login-modal"
-            aria-label="Connexion locale"
+            aria-label="Connexion"
             role="dialog"
             aria-modal="true"
           >
@@ -1873,7 +2252,7 @@ export default function FoodMap() {
               <img src="/images/logos/logo-variants/CMJN-ICON_WHITE_BG_OFF.svg" alt="" aria-hidden="true" />
               <p>Open Food Facts</p>
             </div>
-            <h1>Connexion locale</h1>
+            <h1>Connexion</h1>
 
             <form className="login-form" onSubmit={handleSubmit}>
               <label>
