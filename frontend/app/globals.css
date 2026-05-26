@@ -153,7 +153,6 @@ select {
   background: var(--off-latte);
   border: 1px solid #d8cbc5;
   border-radius: 0;
-  box-shadow: 0 14px 38px rgb(52 17 0 / 18%);
   display: flex;
   flex-direction: column;
   left: 18px;
@@ -1001,7 +1000,6 @@ select {
 .log-modal {
   align-content: start;
   border: 1px solid #e2d8d2;
-  box-shadow: 0 22px 70px rgb(52 17 0 / 24%);
   margin: auto 0;
   max-height: calc(100dvh - 32px);
   max-width: min(440px, 100%);
@@ -1175,7 +1173,6 @@ select {
   background: #fff;
   border: 1px solid #d8cbc5;
   border-radius: 0;
-  box-shadow: 0 22px 70px rgb(52 17 0 / 26%);
   max-width: min(440px, 100%);
   padding: 22px;
   pointer-events: auto;
