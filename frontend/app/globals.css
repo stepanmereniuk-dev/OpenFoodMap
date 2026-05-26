@@ -340,31 +340,31 @@ select {
 .card-select:hover,
 .event-card:hover .card-select,
 .card-select:focus-visible {
-  background: var(--off-brown);
-  color: #fff;
-  outline: 2px solid rgb(255 135 20 / 35%);
-  outline-offset: 2px;
+  background: transparent;
+  background-color: transparent !important;
+  border-color: transparent;
+  box-shadow: none;
+  color: inherit;
+  outline: none;
+  outline-offset: 0;
 }
 
-.card-select:hover time,
-.card-select:hover h2,
-.card-select:hover p,
-.event-card:hover .card-select time,
-.event-card:hover .card-select h2,
-.event-card:hover .card-select p,
-.card-select:focus-visible time,
 .card-select:focus-visible h2,
-.card-select:focus-visible p {
-  color: #fff;
+.event-card:hover .card-select h2,
+.card-select:hover h2 {
+  color: #fff !important;
 }
 
-.card-select:hover .event-dot,
-.card-select:hover .event-location-dot,
-.event-card:hover .event-dot,
-.event-card:hover .event-location-dot,
-.card-select:focus-visible .event-dot,
-.card-select:focus-visible .event-location-dot {
-  background: #fff;
+.card-select:focus-visible time,
+.event-card:hover .card-select time,
+.card-select:hover time {
+  color: var(--off-orange) !important;
+}
+
+.card-select:focus-visible p,
+.event-card:hover .card-select p,
+.card-select:hover p {
+  color: #3f332e !important;
 }
 
 .event-dot,
@@ -602,8 +602,7 @@ select {
 .chat-back:focus-visible {
   background: var(--off-brown);
   color: #fff;
-  outline: 2px solid rgb(255 135 20 / 35%);
-  outline-offset: 2px;
+  outline: none;
 }
 
 .chat-config-button {
