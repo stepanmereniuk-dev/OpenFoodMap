@@ -337,6 +337,36 @@ select {
   gap: 5px;
 }
 
+.card-select:hover,
+.event-card:hover .card-select,
+.card-select:focus-visible {
+  background: var(--off-brown);
+  color: #fff;
+  outline: 2px solid rgb(255 135 20 / 35%);
+  outline-offset: 2px;
+}
+
+.card-select:hover time,
+.card-select:hover h2,
+.card-select:hover p,
+.event-card:hover .card-select time,
+.event-card:hover .card-select h2,
+.event-card:hover .card-select p,
+.card-select:focus-visible time,
+.card-select:focus-visible h2,
+.card-select:focus-visible p {
+  color: #fff;
+}
+
+.card-select:hover .event-dot,
+.card-select:hover .event-location-dot,
+.event-card:hover .event-dot,
+.event-card:hover .event-location-dot,
+.card-select:focus-visible .event-dot,
+.card-select:focus-visible .event-location-dot {
+  background: #fff;
+}
+
 .event-dot,
 .event-location-dot,
 .submit-person-icon {
@@ -499,13 +529,13 @@ select {
 }
 
 .ghost-button:hover {
-  background: #622000;
-  color: #fff;
+  background: var(--off-cappuccino);
+  color: var(--off-brown);
 }
 
 .ghost-button:hover *,
 .ghost-button:focus-visible * {
-  color: #fff;
+  color: var(--off-brown);
 }
 
 .chat-view {
@@ -566,6 +596,14 @@ select {
   line-height: 1;
   padding: 0 0 3px;
   width: 2.6428571429rem;
+}
+
+.chat-back:hover,
+.chat-back:focus-visible {
+  background: var(--off-brown);
+  color: #fff;
+  outline: 2px solid rgb(255 135 20 / 35%);
+  outline-offset: 2px;
 }
 
 .chat-config-button {
@@ -701,13 +739,13 @@ select {
 
 .chat-actions .ghost-button:hover,
 .chat-actions .ghost-button:focus-visible {
-  background: #622000;
-  color: #fff;
+  background: var(--off-cappuccino);
+  color: var(--off-brown);
 }
 
 .chat-actions .ghost-button:hover *,
 .chat-actions .ghost-button:focus-visible * {
-  color: #fff;
+  color: var(--off-brown);
 }
 
 .chat-actions select,
@@ -852,17 +890,6 @@ select {
   color: var(--off-brown);
 }
 
-.config-panel > .ghost-button:hover,
-.config-panel > .ghost-button:focus-visible {
-  background: #622000;
-  color: #fff;
-}
-
-.config-panel > .ghost-button:hover *,
-.config-panel > .ghost-button:focus-visible * {
-  color: #fff;
-}
-
 .management-block {
   background: #fff;
   border: 1px solid #d8cbc5;
@@ -929,15 +956,14 @@ select {
 .member-list button:focus-visible,
 .exact-picker button:hover,
 .exact-picker button:focus-visible {
-  background: #622000;
-  color: #fff;
+  background: var(--off-cappuccino);
 }
 
 .member-list button:hover *,
 .member-list button:focus-visible *,
 .exact-picker button:hover *,
 .exact-picker button:focus-visible * {
-  color: #fff;
+  color: var(--off-brown);
 }
 
 .exact-picker {
@@ -1160,15 +1186,15 @@ select {
 
 .modal-close:hover,
 .modal-close:focus-visible {
-  background: #622000;
-  color: #fff;
+  background: #cfac9e;
+  color: #333;
   outline: 2px solid rgb(255 135 20 / 35%);
   outline-offset: 2px;
 }
 
 .modal-close:hover *,
 .modal-close:focus-visible * {
-  color: #fff;
+  color: #333;
 }
 
 .modal-actions {
@@ -1214,13 +1240,13 @@ select {
 
 .modal-actions .ghost-button:hover,
 .modal-actions .ghost-button:focus-visible {
-  background: #622000;
-  color: #fff;
+  background: var(--off-cappuccino);
+  color: var(--off-brown);
 }
 
 .modal-actions .ghost-button:hover *,
 .modal-actions .ghost-button:focus-visible * {
-  color: #fff;
+  color: var(--off-brown);
 }
 
 .log-list {
