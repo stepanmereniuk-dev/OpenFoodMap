@@ -276,6 +276,7 @@ select {
   color: #fff;
 }
 
+.off-tabs button[aria-selected="true"] *,
 .off-tabs button[aria-selected="true"] .off-tab-icon {
   color: #fff;
 }
@@ -471,6 +472,12 @@ select {
   transition: background-color 300ms ease-out;
 }
 
+.inline-form button *,
+.action-row button:not(.ghost-button) *,
+.submit-person * {
+  color: #fff;
+}
+
 .inline-form button:hover,
 .action-row button:hover,
 .ghost-button:hover {
@@ -568,6 +575,11 @@ select {
   width: 36px;
 }
 
+.chat-config-button *,
+.chat-config-button[aria-pressed="true"] * {
+  color: #fff;
+}
+
 .chat-config-button[aria-pressed="true"] {
   background: #b94c43;
   color: #fff;
@@ -632,6 +644,11 @@ select {
   margin: 0;
   min-height: 2.6428571429rem;
   padding: .5rem .75rem;
+}
+
+.chat-actions button:not(.ghost-button) *,
+.chat-composer button * {
+  color: #fff;
 }
 
 .chat-actions button:disabled,
@@ -765,6 +782,11 @@ select {
   margin: 0;
   min-height: 2.6428571429rem;
   padding: .5rem .75rem;
+}
+
+.config-row button *,
+.config-panel > button:not(.ghost-button) * {
+  color: #fff;
 }
 
 .config-panel > .ghost-button {
@@ -1087,6 +1109,10 @@ select {
   margin: 0;
   min-height: 2.6428571429rem;
   padding: .5rem .75rem;
+}
+
+.modal-actions button:not(.ghost-button) * {
+  color: #fff;
 }
 
 .modal-actions .ghost-button {
@@ -1593,6 +1619,11 @@ select {
     transform: translateY(-50%);
     width: 46px;
     z-index: 2100;
+  }
+
+  .off-menu-slider,
+  .off-menu-slider * {
+    color: #fff;
   }
 
   .off-menu-slider-open {
