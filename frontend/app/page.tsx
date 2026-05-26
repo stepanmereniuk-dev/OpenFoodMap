@@ -15,7 +15,7 @@ export default function Home() {
     e.preventDefault();
     setLoading(true);
     setStatus(null);
-
+ 
     try {
       const res = await fetch("http://127.0.0.1:8000/api/users/create/", {
         method: "POST",
@@ -44,7 +44,7 @@ export default function Home() {
         onSubmit={handleSubmit}
         className="bg-white p-8 rounded-2xl shadow-md w-full max-w-sm flex flex-col gap-4"
       >
-        <h1 className="text-2xl font-bold text-gray-800">Create account</h1>
+     <h1 className="text-2xl font-bold text-gray-800">Create account</h1>
 
         <input
           name="username"
@@ -52,7 +52,6 @@ export default function Home() {
           value={form.username}
           onChange={handleChange}
           required
-          className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <input
           name="email"
@@ -61,7 +60,6 @@ export default function Home() {
           value={form.email}
           onChange={handleChange}
           required
-          className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <input
           name="password"
@@ -70,7 +68,6 @@ export default function Home() {
           value={form.password}
           onChange={handleChange}
           required
-          className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
         {status && (
