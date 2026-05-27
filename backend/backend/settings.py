@@ -11,8 +11,12 @@ SECRET_KEY = 'django-insecure-2(y_sh^9ta(0!83mj^5byjpmv0vyz#ni3532dfe7fto-+e!1ju
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.10.32.177']
-
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    ".onrender.com",           
+    "openfoodmap.onrender.com"
+]
 
 # Application definition
 
