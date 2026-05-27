@@ -8,10 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY')
-
-if not SECRET_KEY:
-    raise RuntimeError('SECRET_KEY environment variable is required')
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-2(y_sh^9ta(0!83mj^5byjpmv0vyz#ni3532dfe7fto-+e!1ju')
 
 DEBUG = os.environ.get('DEBUG', 'False').lower() in {'1', 'true', 'yes', 'on'}
 
@@ -76,11 +73,8 @@ DATABASES = {
     }
 }
 
-MONGO_URI = os.environ.get('MONGO_URI') or os.environ.get('URL')
+MONGO_URI = os.environ.get('MONGO_URI') or os.environ.get('URL') or 'mongodb+srv://open_food_map_db:K3ixEUTqltJvcikG@cluster0.qo89qlk.mongodb.net/?appName=Cluster0'
 MONGO_DB = os.environ.get('MONGO_DB', 'open_food_map_db')
-
-if not MONGO_URI:
-    raise RuntimeError('MONGO_URI environment variable is required')
 
 if not MONGO_DB:
     raise RuntimeError('MONGO_DB environment variable is required')
