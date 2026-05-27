@@ -20,6 +20,7 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     "10.10.32.177",
+    ".vercel.app",
     ".onrender.com",
     "openfoodmap.onrender.com",
     *([_render_host] if _render_host else []),

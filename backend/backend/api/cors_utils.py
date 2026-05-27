@@ -12,7 +12,12 @@ ALLOWED_ORIGINS = [
 
 def cors(request, response):
     origin = request.META.get('HTTP_ORIGIN', '')
-    allowed = settings.DEBUG or origin in ALLOWED_ORIGINS or (origin and origin.endswith('.onrender.com'))
+    allowed = (
+        settings.DEBUG
+        or origin in ALLOWED_ORIGINS
+        or (origin and origin.endswith('.onrender.com'))
+        or (origin and origin.endswith('.vercel.app'))
+    )
     response['Access-Control-Allow-Origin'] = (origin if origin else '*') if allowed else ''
     response['Access-Control-Allow-Methods'] = 'GET, POST, PATCH, PUT, DELETE, OPTIONS'
     response['Access-Control-Allow-Headers'] = 'Content-Type'
