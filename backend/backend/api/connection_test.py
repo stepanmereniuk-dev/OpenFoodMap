@@ -10,4 +10,4 @@ def test_mongodb_connection(request):
     db = client[settings.MONGO_DB]  
     db.command('ping')
     collections = db.list_collection_names()
-    return JsonResponse({'status': 'connected', 'collections': collections})
+    return JsonResponse({'status': 'connected', 'collections': collections})    
