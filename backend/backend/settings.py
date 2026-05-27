@@ -1,5 +1,6 @@
+import os
 from pathlib import Path
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -7,15 +8,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-2(y_sh^9ta(0!83mj^5byjpmv0vyz#ni3532dfe7fto-+e!1ju'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-2(y_sh^9ta(0!83mj^5byjpmv0vyz#ni3532dfe7fto-+e!1ju')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+
+_render_host = os.environ.get('RENDER_EXTERNAL_HOSTNAME', '')
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
-    ".onrender.com",           
-    "openfoodmap.onrender.com"
+    "10.10.32.177",
+    ".onrender.com",
+    "openfoodmap.onrender.com",
+    *([_render_host] if _render_host else []),
 ]
 
 # Application definition
@@ -107,4 +111,5 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
