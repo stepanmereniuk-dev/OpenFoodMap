@@ -1,4 +1,5 @@
 import json
+import uuid
 from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -34,18 +35,30 @@ def events(request):
         start_date = body.get('start_date', '').strip()
         end_date = body.get('end_date', '').strip()
         organizer = body.get('organizer', '').strip()
+        lat = body.get('lat')
+        lng = body.get('lng')
 
         if not title or not start_date:
             return cors(request, JsonResponse({'error': 'title and start_date are required'}, status=400))
 
-        db.events.insert_one({
+        event = {
+            'id': str(uuid.uuid4()),
             'title': title,
             'description': description,
             'location': location,
             'start_date': start_date,
             'end_date': end_date,
             'organizer': organizer,
-        })
-        return cors(request, JsonResponse({'message': f'Event "{title}" created'}, status=201))
+        }
+
+        if lat is not None and lng is not None:
+            try:
+                event['lat'] = float(lat)
+                event['lng'] = float(lng)
+            except (ValueError, TypeError):
+                pass
+
+        db.events.insert_one(event)
+        return cors(request, JsonResponse({'message': f'Event "{title}" created', 'id': event['id']}, status=201))
 
     return cors(request, JsonResponse({'error': 'Method not allowed'}, status=405))
