@@ -487,15 +487,15 @@ function groupByLevel(items: Person[], level: Exclude<ClusterLevel, "touch">) {
 }
 
 function clusterLevelForZoom(zoom: number): ClusterLevel {
-  if (zoom <= 4) {
+  if (zoom <= 5) {
     return "country";
   }
 
-  if (zoom <= 6) {
+  if (zoom <= 7) {
     return "region";
   }
 
-  if (zoom <= 9) {
+  if (zoom <= 10) {
     return "city";
   }
 
@@ -504,15 +504,15 @@ function clusterLevelForZoom(zoom: number): ClusterLevel {
 
 function nextZoomForLevel(level: ClusterLevel) {
   if (level === "country") {
-    return 5;
+    return 6;
   }
 
   if (level === "region") {
-    return 7;
+    return 8;
   }
 
   if (level === "city") {
-    return 10;
+    return 11;
   }
 
   return 12;
@@ -543,6 +543,10 @@ function spiralOffset(index: number, total: number) {
   };
 }
 
+function uniquePeopleById(people: Person[]) {
+  return Array.from(new Map(people.map((person) => [person.id, person])).values());
+}
+
 function PersonMarkers({
   expandedGroupId,
   onPersonSelect,
@@ -562,6 +566,7 @@ function PersonMarkers({
 }) {
   const map = useMap();
   const [mapVersion, setMapVersion] = useState(0);
+  const uniquePeople = useMemo(() => uniquePeopleById(people), [people]);
 
   useMapEvents({
     moveend: () => setMapVersion((version) => version + 1),
@@ -573,21 +578,21 @@ function PersonMarkers({
     const level = clusterLevelForZoom(map.getZoom());
 
     if (level === "touch") {
-      return groupTouchingPeople(people, map);
+      return groupTouchingPeople(uniquePeople, map);
     }
 
-    return groupByLevel(people, level);
-  }, [map, mapVersion, people]);
+    return groupByLevel(uniquePeople, level);
+  }, [map, mapVersion, uniquePeople]);
   const rankColors = useMemo(() => {
-    const rankedIds = [...people]
+    const rankedIds = [...uniquePeople]
       .sort((first, second) => second.editCount - first.editCount)
       .map((person) => person.id);
 
     return new Map(rankedIds.map((id, index) => [id, rankColorForPosition(index, rankedIds.length)]));
-  }, [people]);
+  }, [uniquePeople]);
 
   useEffect(() => {
-    if (map.getZoom() <= 4) {
+    if (map.getZoom() <= 3) {
       onScopeSelect({ level: "global", label: "Toute la carte" });
       return;
     }
@@ -627,7 +632,7 @@ function PersonMarkers({
             <Marker
               eventHandlers={{ click: () => onPersonSelect(person) }}
               icon={personIcon(person, false, rankColors.get(person.id) ?? person.color)}
-              key={person.id}
+              key={`${group.id}-${person.id}`}
               position={person.position}
             />
           );
@@ -681,7 +686,7 @@ function PersonMarkers({
                   <Marker
                     eventHandlers={{ click: () => onPersonSelect(person) }}
                     icon={personIcon(person, true, rankColors.get(person.id) ?? person.color, offset)}
-                    key={person.id}
+                    key={`${group.id}-${person.id}-${index}`}
                     position={group.center}
                     zIndexOffset={1000 + index}
                   />

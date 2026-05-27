@@ -94,11 +94,13 @@ const listPageSize = 10;
 const profileIdStorageKey = "open-food-map-profile-id";
 
 const fallbackAuthor = { id: "session", name: "Session" };
-let localIdCounter = 200_000;
 
 function createLocalId() {
-  localIdCounter += 1;
-  return String(localIdCounter);
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function textIncludes(value: string, query: string) {
@@ -155,6 +157,10 @@ function profileToPerson(profile: UserProfile): Person {
     position: profile.position ?? localPlaces.france.position,
     editCount: stableEditCount(profile.id, profile.pseudo),
   };
+}
+
+function uniqueById<T extends { id: string }>(items: T[]) {
+  return Array.from(new Map(items.map((item) => [item.id, item])).values());
 }
 
 function normalizeScope(scope: SelectedScope | undefined): SelectedScope {
@@ -401,7 +407,7 @@ export default function FoodMap() {
           return;
         }
 
-        const profiles = state.profiles ?? [];
+        const profiles = uniqueById((state.profiles ?? []).map((profile) => ({ ...profile, id: String(profile.id) })));
         setPeople(withEditCounts(profiles.filter((item) => item.visible && item.position).map(profileToPerson)));
         setChannels((state.channels ?? []).map(normalizeChannel));
         setThreads((state.threads ?? []).map(normalizeThread));
