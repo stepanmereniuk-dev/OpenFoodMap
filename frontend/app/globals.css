@@ -1,8 +1,4 @@
-@import "../public/off-css/app-ltr.css";
-@import "../public/off-css/jquery-ui.css";
-@import "../public/off-css/select2.min.css";
 @import "tailwindcss";
-@import "leaflet/dist/leaflet.css";
 
 @font-face {
   font-display: auto;
@@ -471,6 +467,11 @@ select {
   padding: 1.1428571429rem 0 0;
 }
 
+.social-section > .inline-form:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
 .inline-form-row {
   align-items: start;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -478,7 +479,8 @@ select {
 
 .inline-form button,
 .action-row button,
-.ghost-button {
+.ghost-button,
+.load-more-button {
   align-self: start;
   background: var(--off-brown);
   border: 0;
@@ -497,21 +499,30 @@ select {
 
 .inline-form button *,
 .action-row button:not(.ghost-button) *,
-.submit-person * {
+.submit-person *,
+.load-more-button * {
   color: #fff;
 }
 
 .inline-form button:hover,
 .action-row button:hover,
-.ghost-button:hover {
+.ghost-button:hover,
+.load-more-button:hover {
   background: #622000;
 }
 
 .inline-form button:hover *,
 .inline-form button:focus-visible *,
 .action-row button:not(.ghost-button):hover *,
-.action-row button:not(.ghost-button):focus-visible * {
+.action-row button:not(.ghost-button):focus-visible *,
+.load-more-button:hover *,
+.load-more-button:focus-visible * {
   color: #fff;
+}
+
+.load-more-button {
+  justify-self: stretch;
+  width: 100%;
 }
 
 .ghost-button {
@@ -765,6 +776,30 @@ select {
   min-height: 0;
   overflow: auto;
   padding: 10px;
+}
+
+.participant-panel {
+  background: #fff;
+  border-bottom: 1px solid #d8cbc5;
+  flex: 0 0 auto;
+  padding: 10px;
+}
+
+.participant-panel ul {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.participant-panel li {
+  background: var(--off-latte);
+  border: 1px solid #e2d8d2;
+  color: var(--off-brown);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 7px 8px;
 }
 
 .chat-composer {

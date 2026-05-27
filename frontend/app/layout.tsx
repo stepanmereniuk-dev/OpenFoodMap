@@ -1,27 +1,29 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import NavBar from "./components/NavBar";
-import Footer from "./components/Footer";
-
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "OpenFoodMap",
-  description: "Discover food events near you",
+  title: "Open Food Facts Map",
+  description: "Carte OpenStreetMap pour explorer les lieux alimentaires.",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="h-full flex flex-col bg-slate-50">
-        <NavBar />
-        <main className="flex-1 flex flex-col min-h-0">
-          {children}
-        </main>
-        <Footer />
-      </body>
+    <html lang="fr" className="h-full antialiased">
+      <head>
+        {/* eslint-disable-next-line @next/next/no-css-tags */}
+        <link rel="stylesheet" href="/off-css/app-ltr.css?v=1779800845" />
+        {/* eslint-disable-next-line @next/next/no-css-tags */}
+        <link rel="stylesheet" href="/off-css/jquery-ui.css" />
+        {/* eslint-disable-next-line @next/next/no-css-tags */}
+        <link rel="stylesheet" href="/off-css/select2.min.css" />
+        {/* eslint-disable-next-line @next/next/no-css-tags */}
+        <link rel="stylesheet" href="/leaflet/leaflet.css" />
+      </head>
+      <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
 }

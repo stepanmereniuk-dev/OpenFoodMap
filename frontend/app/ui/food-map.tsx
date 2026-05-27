@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import L from "leaflet";
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents, ZoomControl } from "react-leaflet";
@@ -98,12 +98,6 @@ type ExactPersonInputState = {
   message: string | null;
 };
 
-type ExactThreadInputState = {
-  candidate: PrivateThread | null;
-  completion: string | null;
-  message: string | null;
-};
-
 type PersonGroup = {
   id: string;
   label: string;
@@ -114,6 +108,7 @@ type PersonGroup = {
 
 const colorOptions = ["#256f56", "#d68b2f", "#b94c43", "#385f9f", "#7a559a"];
 const clusterDistancePx = 58;
+const listPageSize = 10;
 const peopleStorageKey = "open-food-map-people";
 const profileStorageKey = "open-food-map-profile";
 const channelsStorageKey = "open-food-map-channels";
@@ -889,6 +884,11 @@ export default function FoodMap() {
   const [selectedThreadId, setSelectedThreadId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("recent");
+  const [visibleLimits, setVisibleLimits] = useState<Record<ActiveTab, number>>({
+    channels: listPageSize,
+    discussion: listPageSize,
+    events: listPageSize,
+  });
   const [form, setForm] = useState({ invisible: false, place: "", pseudo: "" });
   const [eventForm, setEventForm] = useState({ date: "", title: "" });
   const [channelTitle, setChannelTitle] = useState("");
@@ -896,8 +896,8 @@ export default function FoodMap() {
   const [messageDrafts, setMessageDrafts] = useState<Record<string, string>>({});
   const [addAdminQuery, setAddAdminQuery] = useState("");
   const [addMemberQuery, setAddMemberQuery] = useState("");
-  const [profileThreadQuery, setProfileThreadQuery] = useState("");
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [isParticipantListOpen, setIsParticipantListOpen] = useState(false);
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -995,6 +995,9 @@ export default function FoodMap() {
 
     return sortByMode(filtered, sortMode, (thread) => itemActivity(messages, "thread", thread.id));
   }, [messages, people, profile?.pseudo, search, sortMode, threads]);
+  const displayedEvents = visibleEvents.slice(0, visibleLimits.events);
+  const displayedChannels = visibleChannels.slice(0, visibleLimits.channels);
+  const displayedThreads = visibleThreads.slice(0, visibleLimits.discussion);
   const openedEvent = activeTab === "events" && selectedEventId ? events.find((eventItem) => eventItem.id === selectedEventId) ?? null : null;
   const openedChannel =
     activeTab === "channels" && selectedChannelId
@@ -1004,8 +1007,6 @@ export default function FoodMap() {
     activeTab === "discussion" && selectedThreadId
       ? threads.find((thread) => thread.id === selectedThreadId) ?? null
       : null;
-  const isChatOpen = Boolean(openedEvent || openedChannel || openedThread);
-
   useEffect(() => {
     window.localStorage.setItem(peopleStorageKey, JSON.stringify(people));
   }, [people]);
@@ -1321,33 +1322,6 @@ export default function FoodMap() {
     return { candidate: null, completion, message: "Pseudo introuvable" };
   }
 
-  function exactThreadInputState(query: string): ExactThreadInputState {
-    const normalizedQuery = normalizeKey(query);
-    const availableThreads = selectedPerson
-      ? threads.filter((thread) => !thread.memberIds.includes(selectedPerson.id))
-      : threads;
-    const candidate = normalizedQuery
-      ? availableThreads.find((thread) => normalizeKey(thread.title) === normalizedQuery) ?? null
-      : null;
-    const completion = normalizedQuery
-      ? availableThreads.find((thread) => normalizeKey(thread.title).startsWith(normalizedQuery))?.title ?? null
-      : null;
-
-    if (!normalizedQuery) {
-      return { candidate: null, completion: null, message: null };
-    }
-
-    if (candidate) {
-      return { candidate, completion: candidate.title, message: `${candidate.title} reconnue` };
-    }
-
-    if (threads.some((thread) => normalizeKey(thread.title) === normalizedQuery)) {
-      return { candidate: null, completion: null, message: "Déjà ajouté" };
-    }
-
-    return { candidate: null, completion, message: "Discussion introuvable" };
-  }
-
   function addLog(label: string, detail: string) {
     setLogs((currentLogs) => [
       { id: createLocalId(), label, detail, createdAt: nowIso() },
@@ -1466,16 +1440,47 @@ export default function FoodMap() {
     setSelectedPersonId(person.id);
   }
 
+  const resetVisibleLists = useCallback(() => {
+    setVisibleLimits({
+      channels: listPageSize,
+      discussion: listPageSize,
+      events: listPageSize,
+    });
+  }, []);
+
+  const handleScopeSelect = useCallback((scope: SelectedScope) => {
+    setSelectedScope((currentScope) =>
+      currentScope.level === scope.level &&
+      currentScope.label === scope.label &&
+      currentScope.country === scope.country &&
+      currentScope.region === scope.region &&
+      currentScope.city === scope.city
+        ? currentScope
+        : scope,
+    );
+    resetVisibleLists();
+  }, [resetVisibleLists]);
+
   function renderTools() {
     return (
       <div className="social-tools">
         <input
           aria-label="Recherche"
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            resetVisibleLists();
+          }}
           placeholder="Rechercher"
           value={search}
         />
-        <select aria-label="Tri" onChange={(event) => setSortMode(event.target.value as SortMode)} value={sortMode}>
+        <select
+          aria-label="Tri"
+          onChange={(event) => {
+            setSortMode(event.target.value as SortMode);
+            resetVisibleLists();
+          }}
+          value={sortMode}
+        >
           <option value="recent">Récent</option>
           <option value="name">Nom</option>
           <option value="activity">Activité</option>
@@ -1489,12 +1494,21 @@ export default function FoodMap() {
     setSelectedEventId(null);
     setSelectedThreadId(null);
     setIsConfigOpen(false);
+    setIsParticipantListOpen(false);
   }
 
   function selectTab(tab: ActiveTab) {
     setActiveTab(tab);
+    resetVisibleLists();
     closeChat();
     setSelectedPersonId(null);
+  }
+
+  function showMore(tab: ActiveTab) {
+    setVisibleLimits((currentLimits) => ({
+      ...currentLimits,
+      [tab]: currentLimits[tab] + listPageSize,
+    }));
   }
 
   function renderComposer(targetType: Message["targetType"], targetId: number) {
@@ -1570,47 +1584,6 @@ export default function FoodMap() {
             {actionLabel}
           </button>
         )}
-        {state.message && <small>{state.message}</small>}
-      </div>
-    );
-  }
-
-  function renderThreadSearch() {
-    const state = exactThreadInputState(profileThreadQuery);
-    const completionSuffix =
-      state.completion && normalizeKey(state.completion).startsWith(normalizeKey(profileThreadQuery))
-        ? state.completion.slice(profileThreadQuery.length)
-        : "";
-
-    return (
-      <div className="exact-picker">
-        <div className="exact-input-wrap">
-          <input
-            aria-label="Nom exact de discussion"
-            autoComplete="off"
-            onChange={(event) => setProfileThreadQuery(event.target.value)}
-            placeholder="Nom exact de discussion"
-            value={profileThreadQuery}
-          />
-          {profileThreadQuery && completionSuffix && (
-            <span aria-hidden="true" className="exact-completion">
-              <span className="exact-completion-prefix">{profileThreadQuery}</span>
-              {completionSuffix}
-            </span>
-          )}
-        </div>
-        <button
-          disabled={!state.candidate || !selectedPerson}
-          onClick={() => {
-            if (state.candidate && selectedPerson) {
-              addMemberToThread(state.candidate.id, selectedPerson.id);
-              setProfileThreadQuery("");
-            }
-          }}
-          type="button"
-        >
-          Ajouter
-        </button>
         {state.message && <small>{state.message}</small>}
       </div>
     );
@@ -1828,6 +1801,7 @@ export default function FoodMap() {
   function renderChatView({
     actions,
     afterConfigActions,
+    beforeMessages,
     meta,
     targetId,
     targetType,
@@ -1835,6 +1809,7 @@ export default function FoodMap() {
   }: {
     afterConfigActions?: ReactNode;
     actions?: ReactNode;
+    beforeMessages?: ReactNode;
     meta: string;
     targetId: number;
     targetType: Message["targetType"];
@@ -1865,6 +1840,7 @@ export default function FoodMap() {
           {afterConfigActions}
         </div>
         {isConfigOpen && renderConfigPanel()}
+        {beforeMessages}
         <div className="message-list chat-messages">
           {itemMessages.length > 0 ? (
             itemMessages.map((message) => (
@@ -1893,7 +1869,7 @@ export default function FoodMap() {
         <PersonMarkers
           expandedGroupId={expandedGroupId}
           onPersonSelect={handlePersonSelect}
-          onScopeSelect={setSelectedScope}
+          onScopeSelect={handleScopeSelect}
           pendingOpenIds={pendingOpenIds}
           people={people}
           setExpandedGroupId={setExpandedGroupId}
@@ -1954,31 +1930,52 @@ export default function FoodMap() {
 
         <div className="off-panel">
           {status && <strong className="form-status social-status">{status}</strong>}
-          {!isChatOpen && renderTools()}
 
           {openedEvent &&
             renderChatView({
               actions: (
-                <button
-                  onClick={() =>
-                    setEvents((currentEvents) =>
-                      currentEvents.map((currentEvent) =>
-                        currentEvent.id === openedEvent.id
-                          ? {
-                              ...currentEvent,
-                              participantIds: openedEvent.participantIds.includes(currentUser.id)
-                                ? currentEvent.participantIds.filter((id) => id !== currentUser.id)
-                                : [...currentEvent.participantIds, currentUser.id],
-                            }
-                          : currentEvent,
-                      ),
-                    )
-                  }
-                  type="button"
-                >
-                  {openedEvent.participantIds.includes(currentUser.id) ? "Annuler participation" : "Participer"}
-                </button>
+                <>
+                  <button
+                    onClick={() =>
+                      setEvents((currentEvents) =>
+                        currentEvents.map((currentEvent) =>
+                          currentEvent.id === openedEvent.id
+                            ? {
+                                ...currentEvent,
+                                participantIds: openedEvent.participantIds.includes(currentUser.id)
+                                  ? currentEvent.participantIds.filter((id) => id !== currentUser.id)
+                                  : [...currentEvent.participantIds, currentUser.id],
+                              }
+                            : currentEvent,
+                        ),
+                      )
+                    }
+                    type="button"
+                  >
+                    {openedEvent.participantIds.includes(currentUser.id) ? "Annuler participation" : "Participer"}
+                  </button>
+                  <button
+                    className="ghost-button"
+                    onClick={() => setIsParticipantListOpen((isOpen) => !isOpen)}
+                    type="button"
+                  >
+                    Participants
+                  </button>
+                </>
               ),
+              beforeMessages: isParticipantListOpen ? (
+                <section className="participant-panel" aria-label="Participants">
+                  {openedEvent.participantIds.length > 0 ? (
+                    <ul>
+                      {openedEvent.participantIds.map((participantId) => (
+                        <li key={participantId}>{personName(participantId)}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="off-empty">Aucun participant.</p>
+                  )}
+                </section>
+              ) : null,
               meta: `${openedEvent.date} · ${scopeLabel(openedEvent.scope)} · ${openedEvent.participantIds.length} participant(s)`,
               targetId: openedEvent.id,
               targetType: "event",
@@ -2033,9 +2030,25 @@ export default function FoodMap() {
 
           {activeTab === "events" && !openedEvent && (
             <div className="social-section">
+              <form className="inline-form" onSubmit={createEvent}>
+                <input
+                  aria-label="Titre événement"
+                  onChange={(event) => setEventForm({ ...eventForm, title: event.target.value })}
+                  placeholder="Nouvel événement"
+                  value={eventForm.title}
+                />
+                <input
+                  aria-label="Date événement"
+                  onChange={(event) => setEventForm({ ...eventForm, date: event.target.value })}
+                  type="date"
+                  value={eventForm.date}
+                />
+                <button type="submit">Créer</button>
+              </form>
+              {renderTools()}
               <div className="event-list">
                 {visibleEvents.length > 0 ? (
-                  visibleEvents.map((eventItem) => (
+                  displayedEvents.map((eventItem) => (
                       <article className="event-card social-card" key={eventItem.id}>
                         <button className="card-select" onClick={() => setSelectedEventId(eventItem.id)} type="button">
                           <time>
@@ -2054,29 +2067,29 @@ export default function FoodMap() {
                   <p className="off-empty">Aucun évènement pour ce niveau.</p>
                 )}
               </div>
-              <form className="inline-form" onSubmit={createEvent}>
-                <input
-                  aria-label="Titre événement"
-                  onChange={(event) => setEventForm({ ...eventForm, title: event.target.value })}
-                  placeholder="Nouvel événement"
-                  value={eventForm.title}
-                />
-                <input
-                  aria-label="Date événement"
-                  onChange={(event) => setEventForm({ ...eventForm, date: event.target.value })}
-                  type="date"
-                  value={eventForm.date}
-                />
-                <button type="submit">Créer</button>
-              </form>
+              {visibleEvents.length > displayedEvents.length && (
+                <button className="load-more-button" onClick={() => showMore("events")} type="button">
+                  Voir plus
+                </button>
+              )}
             </div>
           )}
 
           {activeTab === "channels" && !openedChannel && (
             <div className="social-section">
+              <form className="inline-form inline-form-row" onSubmit={createChannel}>
+                <input
+                  aria-label="Nom canal"
+                  onChange={(event) => setChannelTitle(event.target.value)}
+                  placeholder={`Canal public · ${selectedScope.label}`}
+                  value={channelTitle}
+                />
+                <button type="submit">Créer</button>
+              </form>
+              {renderTools()}
               <div className="event-list">
                 {visibleChannels.length > 0 ? (
-                  visibleChannels.map((channel) => (
+                  displayedChannels.map((channel) => (
                       <article className="event-card social-card" key={channel.id}>
                         <button className="card-select" onClick={() => setSelectedChannelId(channel.id)} type="button">
                           <time>
@@ -2095,23 +2108,37 @@ export default function FoodMap() {
                   <p className="off-empty">Aucun canal.</p>
                 )}
               </div>
-              <form className="inline-form inline-form-row" onSubmit={createChannel}>
-                <input
-                  aria-label="Nom canal"
-                  onChange={(event) => setChannelTitle(event.target.value)}
-                  placeholder={`Canal public · ${selectedScope.label}`}
-                  value={channelTitle}
-                />
-                <button type="submit">Créer</button>
-              </form>
+              {visibleChannels.length > displayedChannels.length && (
+                <button className="load-more-button" onClick={() => showMore("channels")} type="button">
+                  Voir plus
+                </button>
+              )}
             </div>
           )}
 
           {activeTab === "discussion" && !openedThread && (
             <div className="social-section">
+              <form className="inline-form" onSubmit={createThread}>
+                <input
+                  aria-label="Nom discussion"
+                  onChange={(event) => setThreadForm({ ...threadForm, title: event.target.value })}
+                  placeholder="Nom de discussion"
+                  value={threadForm.title}
+                />
+                {renderExactPersonInput({
+                  excludedIds: [currentUser.id],
+                  label: "Pseudo exact membre",
+                  query: threadForm.memberQuery,
+                  setQuery: (memberQuery) => setThreadForm({ ...threadForm, memberQuery }),
+                })}
+                <button disabled={!exactPersonInputState(threadForm.memberQuery, [currentUser.id]).candidate} type="submit">
+                  Créer
+                </button>
+              </form>
+              {renderTools()}
               <div className="event-list">
                 {visibleThreads.length > 0 ? (
-                  visibleThreads.map((thread) => (
+                  displayedThreads.map((thread) => (
                       <article className="event-card social-card" key={thread.id}>
                         <button className="card-select" onClick={() => setSelectedThreadId(thread.id)} type="button">
                           <time>
@@ -2130,23 +2157,11 @@ export default function FoodMap() {
                   <p className="off-empty">Aucune discussion.</p>
                 )}
               </div>
-              <form className="inline-form" onSubmit={createThread}>
-                <input
-                  aria-label="Nom discussion"
-                  onChange={(event) => setThreadForm({ ...threadForm, title: event.target.value })}
-                  placeholder="Nom de discussion"
-                  value={threadForm.title}
-                />
-                {renderExactPersonInput({
-                  excludedIds: [currentUser.id],
-                  label: "Pseudo exact membre",
-                  query: threadForm.memberQuery,
-                  setQuery: (memberQuery) => setThreadForm({ ...threadForm, memberQuery }),
-                })}
-                <button disabled={!exactPersonInputState(threadForm.memberQuery, [currentUser.id]).candidate} type="submit">
-                  Créer
+              {visibleThreads.length > displayedThreads.length && (
+                <button className="load-more-button" onClick={() => showMore("discussion")} type="button">
+                  Voir plus
                 </button>
-              </form>
+              )}
             </div>
           )}
         </div>
@@ -2194,8 +2209,7 @@ export default function FoodMap() {
               </button>
             </div>
             <div className="management-block">
-              <h3>Ajouter à une discussion</h3>
-              {renderThreadSearch()}
+              <h3>Historique</h3>
             </div>
           </section>
         </div>
