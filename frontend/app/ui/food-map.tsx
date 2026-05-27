@@ -1,44 +1,25 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
-import L from "leaflet";
-import { MapContainer, Marker, TileLayer, useMap, useMapEvents, ZoomControl } from "react-leaflet";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { CSSProperties, FormEvent, ReactNode } from "react";
+import {
+  MapSection,
+  defaultPeople,
+  geocodeLocation,
+  itemScopeMatches,
+  localPlaces,
+  normalizeKey,
+  randomInsideCity,
+  rankColorForPosition,
+  scopeLabel,
+  stableEditCount,
+  withEditCounts,
+} from "./map-section";
+import type { Person, SelectedScope, UserProfile } from "./map-section";
 
-type Person = {
-  id: number;
-  name: string;
-  city: string;
-  region: string;
-  country: string;
-  color: string;
-  position: [number, number];
-  editCount: number;
-};
-
-type UserProfile = {
-  id: number;
-  pseudo: string;
-  city: string;
-  region: string;
-  country: string;
-  position: [number, number] | null;
-  visible: boolean;
-  color: string;
-};
-
-type ClusterLevel = "country" | "region" | "city" | "touch";
 type ActiveTab = "events" | "channels" | "discussion";
 type MembershipRole = "creator" | "admin" | "member";
 type SortMode = "recent" | "name" | "activity";
-
-type SelectedScope = {
-  level: ClusterLevel | "global";
-  label: string;
-  country?: string;
-  region?: string;
-  city?: string;
-};
 
 type Message = {
   id: number;
@@ -98,16 +79,7 @@ type ExactPersonInputState = {
   message: string | null;
 };
 
-type PersonGroup = {
-  id: string;
-  label: string;
-  level: ClusterLevel;
-  center: [number, number];
-  people: Person[];
-};
-
 const colorOptions = ["#256f56", "#d68b2f", "#b94c43", "#385f9f", "#7a559a"];
-const clusterDistancePx = 58;
 const listPageSize = 10;
 const peopleStorageKey = "open-food-map-people";
 const profileStorageKey = "open-food-map-profile";
@@ -126,65 +98,6 @@ function createLocalId() {
   return localIdCounter;
 }
 
-const defaultPeople: Person[] = [
-  {
-    id: 101,
-    name: "Nora",
-    city: "Paris",
-    region: "Ile-de-France",
-    country: "France",
-    color: "#256f56",
-    position: [48.8584, 2.2945],
-    editCount: stableEditCount(101, "Nora"),
-  },
-  {
-    id: 102,
-    name: "Malik",
-    city: "Paris",
-    region: "Ile-de-France",
-    country: "France",
-    color: "#d68b2f",
-    position: [48.864, 2.333],
-    editCount: stableEditCount(102, "Malik"),
-  },
-  {
-    id: 103,
-    name: "Claire",
-    city: "Lyon",
-    region: "Auvergne-Rhone-Alpes",
-    country: "France",
-    color: "#b94c43",
-    position: [45.764, 4.8357],
-    editCount: stableEditCount(103, "Claire"),
-  },
-  {
-    id: 104,
-    name: "Yanis",
-    city: "Marseille",
-    region: "Provence-Alpes-Cote d'Azur",
-    country: "France",
-    color: "#385f9f",
-    position: [43.2965, 5.3698],
-    editCount: stableEditCount(104, "Yanis"),
-  },
-];
-
-const localPlaces: Record<string, { city: string; country: string; position: [number, number]; region: string }> = {
-  france: { city: "", country: "France", position: [46.8, 2.2], region: "" },
-  lyon: { city: "Lyon", country: "France", position: [45.764, 4.8357], region: "Auvergne-Rhone-Alpes" },
-  marseille: {
-    city: "Marseille",
-    country: "France",
-    position: [43.2965, 5.3698],
-    region: "Provence-Alpes-Cote d'Azur",
-  },
-  paris: { city: "Paris", country: "France", position: [48.8566, 2.3522], region: "Ile-de-France" },
-};
-
-function normalizeKey(value: string) {
-  return value.trim().toLowerCase();
-}
-
 function textIncludes(value: string, query: string) {
   return normalizeKey(value).includes(normalizeKey(query));
 }
@@ -193,30 +106,12 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function stableEditCount(id: number, name: string) {
-  const source = `${id}:${name}`;
-  let hash = 0;
-
-  for (let index = 0; index < source.length; index += 1) {
-    hash = (hash * 31 + source.charCodeAt(index)) % 9973;
-  }
-
-  return 12 + (hash % 480);
-}
-
 function stableProfileId(profile: Partial<UserProfile> | null) {
   if (profile?.id) {
     return profile.id;
   }
 
   return 50_000 + stableEditCount(profile?.position?.[0] ? Math.round(profile.position[0] * 1000) : 0, profile?.pseudo ?? "local");
-}
-
-function withEditCounts(items: Person[]) {
-  return items.map((person) => ({
-    ...person,
-    editCount: person.editCount ?? stableEditCount(person.id, person.name),
-  }));
 }
 
 function readLocal<T>(key: string, fallback: T) {
@@ -235,6 +130,18 @@ function readLocal<T>(key: string, fallback: T) {
   } catch {
     window.localStorage.removeItem(key);
     return fallback;
+  }
+}
+
+function writeLocal<T>(key: string, value: T) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Storage can fail in private browsing or when quota is full; keep the in-memory session usable.
   }
 }
 
@@ -265,19 +172,8 @@ function withChannelAdmins(items: Channel[]) {
   }));
 }
 
-function scopeLabel(scope: SelectedScope) {
-  return scope.level === "global" ? "Toute la carte" : scope.label;
-}
-
-function itemActivity(messages: Message[], targetType: Message["targetType"], targetId: number) {
-  const itemMessages = messages.filter((message) => message.targetType === targetType && message.targetId === targetId);
-  const lastMessage = itemMessages.at(-1);
-
-  return lastMessage ? Date.parse(lastMessage.createdAt) : 0;
-}
-
-function itemMessageCount(messages: Message[], targetType: Message["targetType"], targetId: number) {
-  return messages.filter((message) => message.targetType === targetType && message.targetId === targetId).length;
+function targetKey(targetType: Message["targetType"], targetId: number) {
+  return `${targetType}-${targetId}`;
 }
 
 function sortByMode<T extends { title: string; createdAt: string }>(
@@ -296,530 +192,6 @@ function sortByMode<T extends { title: string; createdAt: string }>(
 
     return Date.parse(second.createdAt) - Date.parse(first.createdAt);
   });
-}
-
-function itemScopeMatches(scope: SelectedScope, selectedScope: SelectedScope) {
-  if (selectedScope.level === "global" || scope.level === "global") {
-    return true;
-  }
-
-  if (selectedScope.level === "country") {
-    return scope.country === selectedScope.country;
-  }
-
-  if (selectedScope.level === "region") {
-    return scope.country === selectedScope.country && scope.region === selectedScope.region;
-  }
-
-  return scope.country === selectedScope.country && scope.region === selectedScope.region && scope.city === selectedScope.city;
-}
-
-function randomInsideCity(center: [number, number], boundingBox?: [number, number, number, number]) {
-  const maxLatOffset = 0.018;
-  const maxLngOffset = 0.026;
-
-  if (!boundingBox) {
-    return [
-      center[0] + (Math.random() - 0.5) * maxLatOffset,
-      center[1] + (Math.random() - 0.5) * maxLngOffset,
-    ] satisfies [number, number];
-  }
-
-  const [south, north, west, east] = boundingBox;
-  const latSpread = Math.min(Math.max(north - south, 0.002), maxLatOffset);
-  const lngSpread = Math.min(Math.max(east - west, 0.002), maxLngOffset);
-
-  return [
-    center[0] + (Math.random() - 0.5) * latSpread,
-    center[1] + (Math.random() - 0.5) * lngSpread,
-  ] satisfies [number, number];
-}
-
-function randomInsideCountry(center: [number, number], boundingBox?: [number, number, number, number]) {
-  if (!boundingBox) {
-    return center;
-  }
-
-  const [south, north, west, east] = boundingBox;
-
-  return [
-    south + Math.random() * Math.max(north - south, 0),
-    west + Math.random() * Math.max(east - west, 0),
-  ] satisfies [number, number];
-}
-
-function personIcon(person: Person, expanded: boolean, offset?: { x: number; y: number }) {
-  return L.divIcon({
-    className: expanded ? "person-marker person-marker-expanded" : "person-marker",
-    html: `
-      <span
-        class="person-stack"
-        style="--person-x:${offset?.x ?? 0}px; --person-y:${offset?.y ?? 0}px;"
-      >
-        <span class="person-pin" style="--pin-color:${person.color}">
-          <span class="person-head"></span>
-          <span class="person-body"></span>
-        </span>
-        <strong>${person.name}</strong>
-      </span>
-    `,
-    iconSize: [86, 62],
-    iconAnchor: [43, 31],
-  });
-}
-
-function groupIcon(group: PersonGroup, expanded: boolean) {
-  return L.divIcon({
-    className: expanded
-      ? `city-cluster city-cluster-open city-cluster-${group.level}`
-      : `city-cluster city-cluster-${group.level}`,
-    html: `
-      <span class="cluster-stack">
-        <span class="cluster-count">${group.people.length}</span>
-        <strong>${group.label}</strong>
-      </span>
-    `,
-    iconSize: [260, 78],
-    iconAnchor: [130, 39],
-  });
-}
-
-async function geocodeLocation(place: string) {
-  const normalizedPlace = normalizeKey(place);
-  const localPlace = localPlaces[normalizedPlace];
-
-  if (localPlace) {
-    return {
-      ...localPlace,
-      position: randomInsideCity(localPlace.position),
-    };
-  }
-
-  const params = new URLSearchParams({
-    addressdetails: "1",
-    format: "json",
-    limit: "1",
-    q: place,
-  });
-  const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`);
-
-  if (!response.ok) {
-    throw new Error("geocode_failed");
-  }
-
-  const results = (await response.json()) as {
-    address?: {
-      city?: string;
-      country?: string;
-      county?: string;
-      municipality?: string;
-      region?: string;
-      state?: string;
-      town?: string;
-      village?: string;
-    };
-    boundingbox?: [string, string, string, string];
-    lat: string;
-    lon: string;
-    type?: string;
-  }[];
-  const firstResult = results[0];
-
-  if (!firstResult) {
-    return {
-      city: place,
-      country: "France",
-      position: randomInsideCity(localPlaces.france.position),
-      region: "",
-    };
-  }
-
-  const center = [Number(firstResult.lat), Number(firstResult.lon)] satisfies [number, number];
-  const boundingBox = firstResult.boundingbox?.map(Number) as [number, number, number, number] | undefined;
-  const address = firstResult.address ?? {};
-  const cityName = address.city ?? address.town ?? address.village ?? address.municipality;
-  const isCountryOnly = Boolean(address.country && !cityName && firstResult.type === "country");
-
-  return {
-    city: cityName ?? "",
-    country: address.country ?? "Pays inconnu",
-    position: isCountryOnly ? randomInsideCountry(center, boundingBox) : randomInsideCity(center, boundingBox),
-    region: address.state ?? address.region ?? address.county ?? "",
-  };
-}
-
-function selectedScopeFromGroup(group: PersonGroup): SelectedScope {
-  const firstPerson = group.people[0];
-
-  if (group.level === "country") {
-    return { level: "country", label: firstPerson.country, country: firstPerson.country };
-  }
-
-  if (group.level === "region") {
-    return {
-      level: "region",
-      label: firstPerson.region,
-      country: firstPerson.country,
-      region: firstPerson.region,
-    };
-  }
-
-  return {
-    level: group.level,
-    label: group.level === "touch" ? group.label : firstPerson.city,
-    city: firstPerson.city,
-    country: firstPerson.country,
-    region: firstPerson.region,
-  };
-}
-
-function distanceBetweenLatLng(first: [number, number], second: [number, number]) {
-  return Math.hypot(first[0] - second[0], first[1] - second[1]);
-}
-
-function closestGroupToCenter(groups: PersonGroup[], center: [number, number]) {
-  return groups.reduce<PersonGroup | null>((closestGroup, group) => {
-    if (!closestGroup) {
-      return group;
-    }
-
-    return distanceBetweenLatLng(group.center, center) < distanceBetweenLatLng(closestGroup.center, center)
-      ? group
-      : closestGroup;
-  }, null);
-}
-
-function mostLikelyGroup(groups: PersonGroup[], target: [number, number]) {
-  return groups.reduce<PersonGroup | null>((bestGroup, group) => {
-    if (!bestGroup) {
-      return group;
-    }
-
-    if (group.people.length !== bestGroup.people.length) {
-      return group.people.length > bestGroup.people.length ? group : bestGroup;
-    }
-
-    return distanceBetweenLatLng(group.center, target) < distanceBetweenLatLng(bestGroup.center, target)
-      ? group
-      : bestGroup;
-  }, null);
-}
-
-function zoomTargetFromGroup(group: PersonGroup) {
-  if (group.level === "country") {
-    const targetGroup = mostLikelyGroup(groupByLevel(group.people, "region"), group.center);
-
-    return {
-      center: targetGroup?.center ?? group.center,
-      scope: targetGroup ? selectedScopeFromGroup(targetGroup) : selectedScopeFromGroup(group),
-      zoom: nextZoomForLevel(group.level),
-    };
-  }
-
-  if (group.level === "region") {
-    const targetGroup = mostLikelyGroup(groupByLevel(group.people, "city"), group.center);
-
-    return {
-      center: targetGroup?.center ?? group.center,
-      scope: targetGroup ? selectedScopeFromGroup(targetGroup) : selectedScopeFromGroup(group),
-      zoom: nextZoomForLevel(group.level),
-    };
-  }
-
-  if (group.level === "city") {
-    const targetPerson = group.people.reduce<Person | null>((bestPerson, person) => {
-      if (!bestPerson) {
-        return person;
-      }
-
-      return distanceBetweenLatLng(person.position, group.center) < distanceBetweenLatLng(bestPerson.position, group.center)
-        ? person
-        : bestPerson;
-    }, null);
-
-    return {
-      center: targetPerson?.position ?? group.center,
-      scope: selectedScopeFromGroup(group),
-      zoom: nextZoomForLevel(group.level),
-    };
-  }
-
-  return {
-    center: group.center,
-    scope: selectedScopeFromGroup(group),
-    zoom: nextZoomForLevel(group.level),
-  };
-}
-
-function scopeForMapCenter(groups: PersonGroup[], map: L.Map): SelectedScope {
-  const closestGroup = closestGroupToCenter(groups, [map.getCenter().lat, map.getCenter().lng]);
-
-  if (!closestGroup) {
-    return { level: "global", label: "Toute la carte" };
-  }
-
-  if (closestGroup.level === "touch") {
-    const cityGroup = groupByLevel(closestGroup.people, "city")[0];
-
-    return selectedScopeFromGroup(cityGroup ?? closestGroup);
-  }
-
-  return selectedScopeFromGroup(closestGroup);
-}
-
-function distanceBetweenPoints(first: L.Point, second: L.Point) {
-  return Math.hypot(first.x - second.x, first.y - second.y);
-}
-
-function averagePosition(items: Person[]) {
-  const center = items.reduce<[number, number]>(
-    (acc, person) => [acc[0] + person.position[0], acc[1] + person.position[1]],
-    [0, 0],
-  );
-
-  return [center[0] / items.length, center[1] / items.length] satisfies [number, number];
-}
-
-function groupTouchingPeople(items: Person[], map: L.Map) {
-  const groups: Person[][] = [];
-
-  for (const person of items) {
-    const personPoint = map.latLngToContainerPoint(person.position);
-    const touchingGroup = groups.find((group) =>
-      group.some((groupPerson) =>
-        distanceBetweenPoints(personPoint, map.latLngToContainerPoint(groupPerson.position)) < clusterDistancePx,
-      ),
-    );
-
-    if (touchingGroup) {
-      touchingGroup.push(person);
-    } else {
-      groups.push([person]);
-    }
-  }
-
-  return groups.map<PersonGroup>((group) => ({
-    id: touchGroupId(group),
-    label: group.every((person) => normalizeKey(person.city) === normalizeKey(group[0].city))
-      ? group[0].city
-      : "Groupe",
-    level: "touch",
-    center: averagePosition(group),
-    people: group,
-  }));
-}
-
-function groupByLevel(items: Person[], level: Exclude<ClusterLevel, "touch">) {
-  const grouped = new Map<string, Person[]>();
-
-  for (const person of items) {
-    const keyParts =
-      level === "country"
-        ? [person.country]
-        : level === "region"
-          ? [person.country, person.region]
-          : [person.country, person.region, person.city];
-    const key = keyParts.map(normalizeKey).join("|");
-
-    grouped.set(key, [...(grouped.get(key) ?? []), person]);
-  }
-
-  return Array.from(grouped.entries()).map<PersonGroup>(([key, group]) => ({
-    id: `${level}-${key}`,
-    label: level === "country" ? group[0].country : level === "region" ? group[0].region : group[0].city,
-    level,
-    center: averagePosition(group),
-    people: group,
-  }));
-}
-
-function clusterLevelForZoom(zoom: number): ClusterLevel {
-  if (zoom <= 8) {
-    return "country";
-  }
-
-  if (zoom <= 9) {
-    return "region";
-  }
-
-  if (zoom <= 12) {
-    return "city";
-  }
-
-  return "touch";
-}
-
-function nextZoomForLevel(level: ClusterLevel) {
-  if (level === "country") {
-    return 9;
-  }
-
-  if (level === "region") {
-    return 10;
-  }
-
-  if (level === "city") {
-    return 13;
-  }
-
-  return 15;
-}
-
-function touchGroupId(items: Person[]) {
-  return `touch-${items.map((person) => person.id).sort((a, b) => a - b).join("-")}`;
-}
-
-function groupContainsPendingOpen(group: PersonGroup, pendingOpenIds: number[] | null) {
-  if (!pendingOpenIds) {
-    return false;
-  }
-
-  const groupIds = group.people.map((person) => person.id).sort((a, b) => a - b).join("-");
-  const pendingIds = [...pendingOpenIds].sort((a, b) => a - b).join("-");
-
-  return groupIds === pendingIds;
-}
-
-function spiralOffset(index: number, total: number) {
-  const angle = index * 1.9 - Math.PI / 2;
-  const radius = 34 + index * 18 + Math.min(total, 6) * 2;
-
-  return {
-    x: Math.cos(angle) * radius,
-    y: Math.sin(angle) * radius,
-  };
-}
-
-function PersonMarkers({
-  expandedGroupId,
-  onPersonSelect,
-  onScopeSelect,
-  people,
-  pendingOpenIds,
-  setExpandedGroupId,
-  setPendingOpenIds,
-}: {
-  expandedGroupId: string | null;
-  onPersonSelect: (person: Person) => void;
-  onScopeSelect: (scope: SelectedScope) => void;
-  people: Person[];
-  pendingOpenIds: number[] | null;
-  setExpandedGroupId: (groupId: string | null) => void;
-  setPendingOpenIds: (ids: number[] | null) => void;
-}) {
-  const map = useMap();
-  const [mapVersion, setMapVersion] = useState(0);
-
-  useMapEvents({
-    moveend: () => setMapVersion((version) => version + 1),
-    zoomend: () => setMapVersion((version) => version + 1),
-  });
-
-  const groups = useMemo(() => {
-    void mapVersion;
-    const level = clusterLevelForZoom(map.getZoom());
-
-    if (level === "touch") {
-      return groupTouchingPeople(people, map);
-    }
-
-    return groupByLevel(people, level);
-  }, [map, mapVersion, people]);
-
-  useEffect(() => {
-    if (map.getZoom() <= 4) {
-      onScopeSelect({ level: "global", label: "Toute la carte" });
-      return;
-    }
-
-    onScopeSelect(scopeForMapCenter(groups, map));
-  }, [groups, map, onScopeSelect]);
-
-  useEffect(() => {
-    if (expandedGroupId && !groups.some((group) => group.id === expandedGroupId)) {
-      setExpandedGroupId(null);
-    }
-  }, [expandedGroupId, groups, setExpandedGroupId]);
-
-  useEffect(() => {
-    if (!pendingOpenIds) {
-      return;
-    }
-
-    const targetGroup = groups.find((group) => groupContainsPendingOpen(group, pendingOpenIds));
-
-    if (targetGroup?.level === "touch") {
-      setExpandedGroupId(targetGroup.id);
-      setPendingOpenIds(null);
-    }
-  }, [groups, pendingOpenIds, setExpandedGroupId, setPendingOpenIds]);
-
-  return (
-    <>
-      {groups.map((group) => {
-        const isExpanded = expandedGroupId === group.id;
-
-        if (group.people.length === 1) {
-          const person = group.people[0];
-
-          return (
-            <Marker
-              eventHandlers={{ click: () => onPersonSelect(person) }}
-              icon={personIcon(person, false)}
-              key={person.id}
-              position={person.position}
-            />
-          );
-        }
-
-        return (
-          <Fragment key={group.id}>
-            <Marker
-              eventHandlers={{
-                click: () => {
-                  const target = zoomTargetFromGroup(group);
-                  const targetZoom = Math.max(map.getZoom() + 1, target.zoom);
-
-                  map.stop();
-                  onScopeSelect(target.scope);
-                  map.setView(target.center, targetZoom, { animate: true });
-
-                  if (group.level === "touch") {
-                    setExpandedGroupId(isExpanded ? null : group.id);
-                    return;
-                  }
-
-                  if (group.level === "city") {
-                    setPendingOpenIds(group.people.map((person) => person.id));
-                    setExpandedGroupId(touchGroupId(group.people));
-                    return;
-                  }
-
-                  setExpandedGroupId(null);
-                },
-              }}
-              icon={groupIcon(group, isExpanded)}
-              position={group.center}
-            />
-            {isExpanded &&
-              group.people.map((person, index) => {
-                const offset = spiralOffset(index, group.people.length);
-
-                return (
-                  <Marker
-                    eventHandlers={{ click: () => onPersonSelect(person) }}
-                    icon={personIcon(person, true, offset)}
-                    key={person.id}
-                    position={group.center}
-                    zIndexOffset={1000 + index}
-                  />
-                );
-              })}
-          </Fragment>
-        );
-      })}
-    </>
-  );
 }
 
 export default function FoodMap() {
@@ -908,6 +280,9 @@ export default function FoodMap() {
     () => [...people].sort((first, second) => second.editCount - first.editCount),
     [people],
   );
+  const selectedPersonRankIndex = selectedPerson
+    ? rankedPeople.findIndex((person) => person.id === selectedPerson.id)
+    : -1;
   const knownPeople = useMemo(() => {
     if (!profile || people.some((person) => person.id === profile.id)) {
       return people;
@@ -927,6 +302,25 @@ export default function FoodMap() {
       },
     ];
   }, [people, profile]);
+  const messageStats = useMemo(() => {
+    const activity = new Map<string, number>();
+    const counts = new Map<string, number>();
+    const searchText = new Map<string, string[]>();
+
+    for (const message of messages) {
+      const key = targetKey(message.targetType, message.targetId);
+
+      activity.set(key, Date.parse(message.createdAt));
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+      searchText.set(key, [...(searchText.get(key) ?? []), message.body]);
+    }
+
+    return {
+      activity,
+      counts,
+      searchText: new Map(Array.from(searchText.entries()).map(([key, bodies]) => [key, bodies.join(" ")])),
+    };
+  }, [messages]);
 
   useEffect(() => {
     if (hasProfile) {
@@ -950,10 +344,7 @@ export default function FoodMap() {
 
   const visibleEvents = useMemo(() => {
     const filtered = events.filter((eventItem) => {
-      const itemMessages = messages
-        .filter((message) => message.targetType === "event" && message.targetId === eventItem.id)
-        .map((message) => message.body)
-        .join(" ");
+      const itemMessages = messageStats.searchText.get(targetKey("event", eventItem.id)) ?? "";
       const matchesSearch = [eventItem.title, scopeLabel(eventItem.scope), eventItem.date, itemMessages].some((value) =>
         textIncludes(value, search),
       );
@@ -961,15 +352,12 @@ export default function FoodMap() {
       return itemScopeMatches(eventItem.scope, selectedScope) && matchesSearch;
     });
 
-    return sortByMode(filtered, sortMode, (eventItem) => itemActivity(messages, "event", eventItem.id));
-  }, [events, messages, search, selectedScope, sortMode]);
+    return sortByMode(filtered, sortMode, (eventItem) => messageStats.activity.get(targetKey("event", eventItem.id)) ?? 0);
+  }, [events, messageStats, search, selectedScope, sortMode]);
 
   const visibleChannels = useMemo(() => {
     const filtered = channels.filter((channel) => {
-      const itemMessages = messages
-        .filter((message) => message.targetType === "channel" && message.targetId === channel.id)
-        .map((message) => message.body)
-        .join(" ");
+      const itemMessages = messageStats.searchText.get(targetKey("channel", channel.id)) ?? "";
 
       return (
         itemScopeMatches(channel.scope, selectedScope) &&
@@ -977,24 +365,21 @@ export default function FoodMap() {
       );
     });
 
-    return sortByMode(filtered, sortMode, (channel) => itemActivity(messages, "channel", channel.id));
-  }, [channels, messages, search, selectedScope, sortMode]);
+    return sortByMode(filtered, sortMode, (channel) => messageStats.activity.get(targetKey("channel", channel.id)) ?? 0);
+  }, [channels, messageStats, search, selectedScope, sortMode]);
 
   const visibleThreads = useMemo(() => {
     const filtered = threads.filter((thread) => {
       const names = thread.memberIds
         .map((memberId) => people.find((person) => person.id === memberId)?.name ?? profile?.pseudo ?? "")
         .join(" ");
-      const itemMessages = messages
-        .filter((message) => message.targetType === "thread" && message.targetId === thread.id)
-        .map((message) => message.body)
-        .join(" ");
+      const itemMessages = messageStats.searchText.get(targetKey("thread", thread.id)) ?? "";
 
       return [thread.title, names, itemMessages].some((value) => textIncludes(value, search));
     });
 
-    return sortByMode(filtered, sortMode, (thread) => itemActivity(messages, "thread", thread.id));
-  }, [messages, people, profile?.pseudo, search, sortMode, threads]);
+    return sortByMode(filtered, sortMode, (thread) => messageStats.activity.get(targetKey("thread", thread.id)) ?? 0);
+  }, [messageStats, people, profile?.pseudo, search, sortMode, threads]);
   const displayedEvents = visibleEvents.slice(0, visibleLimits.events);
   const displayedChannels = visibleChannels.slice(0, visibleLimits.channels);
   const displayedThreads = visibleThreads.slice(0, visibleLimits.discussion);
@@ -1008,37 +393,37 @@ export default function FoodMap() {
       ? threads.find((thread) => thread.id === selectedThreadId) ?? null
       : null;
   useEffect(() => {
-    window.localStorage.setItem(peopleStorageKey, JSON.stringify(people));
+    writeLocal(peopleStorageKey, people);
   }, [people]);
 
   useEffect(() => {
     if (profile) {
-      window.localStorage.setItem(profileStorageKey, JSON.stringify(profile));
+      writeLocal(profileStorageKey, profile);
     }
   }, [profile]);
 
   useEffect(() => {
-    window.localStorage.setItem(channelsStorageKey, JSON.stringify(channels));
+    writeLocal(channelsStorageKey, channels);
   }, [channels]);
 
   useEffect(() => {
-    window.localStorage.setItem(threadsStorageKey, JSON.stringify(threads));
+    writeLocal(threadsStorageKey, threads);
   }, [threads]);
 
   useEffect(() => {
-    window.localStorage.setItem(eventsStorageKey, JSON.stringify(events));
+    writeLocal(eventsStorageKey, events);
   }, [events]);
 
   useEffect(() => {
-    window.localStorage.setItem(messagesStorageKey, JSON.stringify(messages));
+    writeLocal(messagesStorageKey, messages);
   }, [messages]);
 
   useEffect(() => {
-    window.localStorage.setItem(reportsStorageKey, JSON.stringify(reports));
+    writeLocal(reportsStorageKey, reports);
   }, [reports]);
 
   useEffect(() => {
-    window.localStorage.setItem(logsStorageKey, JSON.stringify(logs));
+    writeLocal(logsStorageKey, logs);
   }, [logs]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1860,22 +1245,15 @@ export default function FoodMap() {
 
   return (
     <main className={hasProfile ? "map-shell" : "map-shell map-shell-login-open"}>
-      <MapContainer center={[46.8, 2.2]} zoom={5} zoomControl={false} scrollWheelZoom className="leaflet-map">
-        <ZoomControl position="topright" />
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        <PersonMarkers
-          expandedGroupId={expandedGroupId}
-          onPersonSelect={handlePersonSelect}
-          onScopeSelect={handleScopeSelect}
-          pendingOpenIds={pendingOpenIds}
-          people={people}
-          setExpandedGroupId={setExpandedGroupId}
-          setPendingOpenIds={setPendingOpenIds}
-        />
-      </MapContainer>
+      <MapSection
+        expandedGroupId={expandedGroupId}
+        onPersonSelect={handlePersonSelect}
+        onScopeSelect={handleScopeSelect}
+        pendingOpenIds={pendingOpenIds}
+        people={people}
+        setExpandedGroupId={setExpandedGroupId}
+        setPendingOpenIds={setPendingOpenIds}
+      />
 
       <section
         className={isMobileMenuOpen ? "off-menu off-menu-mobile-open" : "off-menu"}
@@ -1996,7 +1374,7 @@ export default function FoodMap() {
                   Signaler canal
                 </button>
               ),
-              meta: `Canal public · ${scopeLabel(openedChannel.scope)} · ${itemMessageCount(messages, "channel", openedChannel.id)} message(s)`,
+              meta: `Canal public · ${scopeLabel(openedChannel.scope)} · ${messageStats.counts.get(targetKey("channel", openedChannel.id)) ?? 0} message(s)`,
               targetId: openedChannel.id,
               targetType: "channel",
               title: openedChannel.title,
@@ -2099,7 +1477,7 @@ export default function FoodMap() {
                           <h2>{channel.title}</h2>
                           <p>
                             <span className="event-location-dot" aria-hidden="true" />
-                            {scopeLabel(channel.scope)} · {itemMessageCount(messages, "channel", channel.id)} message(s)
+                            {scopeLabel(channel.scope)} · {messageStats.counts.get(targetKey("channel", channel.id)) ?? 0} message(s)
                           </p>
                         </button>
                       </article>
@@ -2172,13 +1550,21 @@ export default function FoodMap() {
           <section aria-label="Profil" aria-modal="true" className="profile-modal" role="dialog">
             <button
               aria-label="Fermer le profil"
-              className="modal-close profile-modal-close"
+              className="modal-close profile-modal-close profile-modal-close-desktop"
               onClick={() => setSelectedPersonId(null)}
               type="button"
             >
-              <span className="modal-close-desktop" aria-hidden="true">×</span>
+              ×
             </button>
-            <div>
+            <button
+              aria-label="Fermer le profil"
+              className="off-menu-slider off-menu-slider-open profile-modal-close-mobile"
+              onClick={() => setSelectedPersonId(null)}
+              type="button"
+            >
+              <span aria-hidden="true">‹</span>
+            </button>
+            <div className="profile-modal-heading">
               <p className="eyebrow">Profil</p>
               <h2>{selectedPerson.name}</h2>
               <p>{[selectedPerson.city, selectedPerson.region, selectedPerson.country].filter(Boolean).join(", ")}</p>
@@ -2190,7 +1576,12 @@ export default function FoodMap() {
               </div>
               <div>
                 <dt>Rang</dt>
-                <dd>#{rankedPeople.findIndex((person) => person.id === selectedPerson.id) + 1}</dd>
+                <dd
+                  className="profile-rank-value"
+                  style={{ "--rank-color": rankColorForPosition(selectedPersonRankIndex, rankedPeople.length) } as CSSProperties}
+                >
+                  #{selectedPersonRankIndex + 1}
+                </dd>
               </div>
             </dl>
             <div className="modal-actions">
@@ -2245,7 +1636,7 @@ export default function FoodMap() {
         </div>
       )}
 
-      {hasProfile && (
+      {hasProfile && !selectedPerson && (
         <button
           aria-label={isMobileMenuOpen ? "Masquer le menu" : "Afficher le menu"}
           className={isMobileMenuOpen ? "off-menu-slider off-menu-slider-open" : "off-menu-slider"}
