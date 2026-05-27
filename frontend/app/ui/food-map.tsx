@@ -22,52 +22,52 @@ type MembershipRole = "creator" | "admin" | "member";
 type SortMode = "recent" | "name" | "activity";
 
 type Message = {
-  id: number;
+  id: string;
   targetType: "event" | "channel" | "thread";
-  targetId: number;
-  authorId: number;
+  targetId: string;
+  authorId: string;
   authorName: string;
   body: string;
   createdAt: string;
 };
 
 type Channel = {
-  id: number;
+  id: string;
   title: string;
   scope: SelectedScope;
-  creatorId: number;
-  admins: number[];
+  creatorId: string;
+  admins: string[];
   createdAt: string;
 };
 
 type PrivateThread = {
-  id: number;
+  id: string;
   title: string;
-  memberIds: number[];
-  roles: Record<number, MembershipRole>;
+  memberIds: string[];
+  roles: Record<string, MembershipRole>;
   createdAt: string;
 };
 
 type MapEvent = {
-  id: number;
+  id: string;
   title: string;
   date: string;
   scope: SelectedScope;
-  creatorId: number;
-  admins: number[];
-  participantIds: number[];
+  creatorId: string;
+  admins: string[];
+  participantIds: string[];
   createdAt: string;
 };
 
 type Report = {
-  id: number;
-  personId: number;
-  reporterId: number;
+  id: string;
+  personId: string;
+  reporterId: string;
   createdAt: string;
 };
 
 type AuditLog = {
-  id: number;
+  id: string;
   label: string;
   detail: string;
   createdAt: string;
@@ -93,12 +93,12 @@ const colorOptions = ["#256f56", "#d68b2f", "#b94c43", "#385f9f", "#7a559a"];
 const listPageSize = 10;
 const profileIdStorageKey = "open-food-map-profile-id";
 
-const fallbackAuthor = { id: 0, name: "Session" };
+const fallbackAuthor = { id: "session", name: "Session" };
 let localIdCounter = 200_000;
 
 function createLocalId() {
   localIdCounter += 1;
-  return localIdCounter;
+  return String(localIdCounter);
 }
 
 function textIncludes(value: string, query: string) {
@@ -140,21 +140,7 @@ function writeLocal<T>(key: string, value: T) {
   }
 }
 
-function withEventAdmins(items: MapEvent[]) {
-  return items.map((eventItem) => ({
-    ...eventItem,
-    admins: eventItem.admins?.length ? eventItem.admins : [eventItem.creatorId],
-  }));
-}
-
-function withChannelAdmins(items: Channel[]) {
-  return items.map((channel) => ({
-    ...channel,
-    admins: channel.admins?.length ? channel.admins : [channel.creatorId],
-  }));
-}
-
-function targetKey(targetType: Message["targetType"], targetId: number) {
+function targetKey(targetType: Message["targetType"], targetId: string) {
   return `${targetType}-${targetId}`;
 }
 
@@ -168,6 +154,60 @@ function profileToPerson(profile: UserProfile): Person {
     color: profile.color,
     position: profile.position ?? localPlaces.france.position,
     editCount: stableEditCount(profile.id, profile.pseudo),
+  };
+}
+
+function normalizeScope(scope: SelectedScope | undefined): SelectedScope {
+  return scope?.level ? scope : { level: "global", label: "Toute la carte" };
+}
+
+function normalizeEvent(eventItem: Partial<MapEvent> & { start_date?: string }): MapEvent {
+  const creatorId = String(eventItem.creatorId ?? fallbackAuthor.id);
+
+  return {
+    id: String(eventItem.id ?? createLocalId()),
+    title: eventItem.title ?? "Évènement",
+    date: eventItem.date ?? eventItem.start_date?.slice(0, 10) ?? "",
+    scope: normalizeScope(eventItem.scope),
+    creatorId,
+    admins: (eventItem.admins ?? [creatorId]).map(String),
+    participantIds: (eventItem.participantIds ?? []).map(String),
+    createdAt: eventItem.createdAt ?? nowIso(),
+  };
+}
+
+function normalizeChannel(channel: Partial<Channel>): Channel {
+  const creatorId = String(channel.creatorId ?? fallbackAuthor.id);
+
+  return {
+    id: String(channel.id ?? createLocalId()),
+    title: channel.title ?? "Canal",
+    scope: normalizeScope(channel.scope),
+    creatorId,
+    admins: (channel.admins ?? [creatorId]).map(String),
+    createdAt: channel.createdAt ?? nowIso(),
+  };
+}
+
+function normalizeThread(thread: Partial<PrivateThread>): PrivateThread {
+  return {
+    id: String(thread.id ?? createLocalId()),
+    title: thread.title ?? "Discussion",
+    memberIds: (thread.memberIds ?? []).map(String),
+    roles: Object.fromEntries(Object.entries(thread.roles ?? {}).map(([key, value]) => [String(key), value])),
+    createdAt: thread.createdAt ?? nowIso(),
+  };
+}
+
+function normalizeMessage(message: Partial<Message>): Message {
+  return {
+    id: String(message.id ?? createLocalId()),
+    targetType: message.targetType ?? "event",
+    targetId: String(message.targetId ?? ""),
+    authorId: String(message.authorId ?? fallbackAuthor.id),
+    authorName: message.authorName ?? fallbackAuthor.name,
+    body: message.body ?? "",
+    createdAt: message.createdAt ?? nowIso(),
   };
 }
 
@@ -190,7 +230,7 @@ function sortByMode<T extends { title: string; createdAt: string }>(
 }
 
 export default function FoodMap() {
-  const [profileId, setProfileId] = useState<number | null>(() => readLocal<number | null>(profileIdStorageKey, null));
+  const [profileId, setProfileId] = useState<string | null>(() => readLocal<string | null>(profileIdStorageKey, null));
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -200,17 +240,17 @@ export default function FoodMap() {
   const [, setReports] = useState<Report[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
-  const [pendingOpenIds, setPendingOpenIds] = useState<number[] | null>(null);
+  const [pendingOpenIds, setPendingOpenIds] = useState<string[] | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("events");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SelectedScope>({
     level: "global",
     label: "Toute la carte",
   });
-  const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
-  const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
-  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
-  const [selectedThreadId, setSelectedThreadId] = useState<number | null>(null);
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("recent");
   const [visibleLimits, setVisibleLimits] = useState<Record<ActiveTab, number>>({
@@ -363,10 +403,10 @@ export default function FoodMap() {
 
         const profiles = state.profiles ?? [];
         setPeople(withEditCounts(profiles.filter((item) => item.visible && item.position).map(profileToPerson)));
-        setChannels(withChannelAdmins(state.channels ?? []));
-        setThreads(state.threads ?? []);
-        setEvents(withEventAdmins(state.events ?? []));
-        setMessages(state.messages ?? []);
+        setChannels((state.channels ?? []).map(normalizeChannel));
+        setThreads((state.threads ?? []).map(normalizeThread));
+        setEvents((state.events ?? []).map(normalizeEvent));
+        setMessages((state.messages ?? []).map(normalizeMessage));
         setReports(state.reports ?? []);
         setLogs(state.audit_logs ?? []);
 
@@ -439,7 +479,7 @@ export default function FoodMap() {
     }
   }
 
-  async function addMessage(targetType: Message["targetType"], targetId: number) {
+  async function addMessage(targetType: Message["targetType"], targetId: string) {
     const key = `${targetType}-${targetId}`;
     const body = messageDrafts[key]?.trim();
 
@@ -574,7 +614,7 @@ export default function FoodMap() {
     setActiveTab("discussion");
   }
 
-  async function addMemberToThread(threadId: number, personId: number) {
+  async function addMemberToThread(threadId: string, personId: string) {
     if (!personId) {
       return;
     }
@@ -598,7 +638,7 @@ export default function FoodMap() {
     }
   }
 
-  async function leaveThread(threadId: number) {
+  async function leaveThread(threadId: string) {
     const thread = threads.find((currentThread) => currentThread.id === threadId);
 
     if (!thread || thread.roles[currentUser.id] === "creator") {
@@ -622,7 +662,7 @@ export default function FoodMap() {
     }
   }
 
-  async function removeMemberFromThread(threadId: number, personId: number) {
+  async function removeMemberFromThread(threadId: string, personId: string) {
     const thread = threads.find((item) => item.id === threadId);
     if (!thread || thread.roles[personId] === "creator") {
       return;
@@ -643,7 +683,7 @@ export default function FoodMap() {
     }
   }
 
-  function personName(personId: number) {
+  function personName(personId: string) {
     if (personId === currentUser.id) {
       return currentUser.name;
     }
@@ -651,7 +691,7 @@ export default function FoodMap() {
     return knownPeople.find((person) => person.id === personId)?.name ?? `Utilisateur ${personId}`;
   }
 
-  function exactPersonInputState(query: string, excludedIds: number[] = []): ExactPersonInputState {
+  function exactPersonInputState(query: string, excludedIds: string[] = []): ExactPersonInputState {
     const normalizedQuery = normalizeKey(query);
     const excluded = new Set(excludedIds);
     const admissiblePeople = knownPeople.filter((person) => !excluded.has(person.id));
@@ -687,7 +727,7 @@ export default function FoodMap() {
     }
   }
 
-  async function addAdminToEvent(eventId: number, personId: number) {
+  async function addAdminToEvent(eventId: string, personId: string) {
     if (!personId) {
       return;
     }
@@ -709,7 +749,7 @@ export default function FoodMap() {
     }
   }
 
-  async function removeAdminFromEvent(eventId: number, personId: number) {
+  async function removeAdminFromEvent(eventId: string, personId: string) {
     const eventItem = events.find((item) => item.id === eventId);
     if (!eventItem || eventItem.creatorId === personId) {
       return;
@@ -726,7 +766,7 @@ export default function FoodMap() {
     }
   }
 
-  async function addAdminToChannel(channelId: number, personId: number) {
+  async function addAdminToChannel(channelId: string, personId: string) {
     if (!personId) {
       return;
     }
@@ -748,7 +788,7 @@ export default function FoodMap() {
     }
   }
 
-  async function removeAdminFromChannel(channelId: number, personId: number) {
+  async function removeAdminFromChannel(channelId: string, personId: string) {
     const channel = channels.find((item) => item.id === channelId);
     if (!channel || channel.creatorId === personId) {
       return;
@@ -765,7 +805,7 @@ export default function FoodMap() {
     }
   }
 
-  async function promoteThreadAdmin(threadId: number, personId: number) {
+  async function promoteThreadAdmin(threadId: string, personId: string) {
     if (!personId) {
       return;
     }
@@ -788,7 +828,7 @@ export default function FoodMap() {
     }
   }
 
-  async function demoteThreadAdmin(threadId: number, personId: number) {
+  async function demoteThreadAdmin(threadId: string, personId: string) {
     const thread = threads.find((item) => item.id === threadId);
     if (!thread || thread.roles[personId] === "creator") {
       return;
@@ -805,7 +845,7 @@ export default function FoodMap() {
     }
   }
 
-  async function updateEventConfig(eventId: number, updates: Partial<Pick<MapEvent, "date" | "title">>) {
+  async function updateEventConfig(eventId: string, updates: Partial<Pick<MapEvent, "date" | "title">>) {
     const eventItem = events.find((item) => item.id === eventId);
     if (!eventItem) {
       return;
@@ -819,7 +859,7 @@ export default function FoodMap() {
     }
   }
 
-  async function updateChannelConfig(channelId: number, updates: Partial<Pick<Channel, "title">>) {
+  async function updateChannelConfig(channelId: string, updates: Partial<Pick<Channel, "title">>) {
     const channel = channels.find((item) => item.id === channelId);
     if (!channel) {
       return;
@@ -833,7 +873,7 @@ export default function FoodMap() {
     }
   }
 
-  async function updateThreadConfig(threadId: number, updates: Partial<Pick<PrivateThread, "title">>) {
+  async function updateThreadConfig(threadId: string, updates: Partial<Pick<PrivateThread, "title">>) {
     const thread = threads.find((item) => item.id === threadId);
     if (!thread) {
       return;
@@ -847,7 +887,7 @@ export default function FoodMap() {
     }
   }
 
-  async function reportPerson(personId: number) {
+  async function reportPerson(personId: string) {
     try {
       const report = await createOffItem<Report>("reports", { id: createLocalId(), personId, reporterId: currentUser.id, createdAt: nowIso() });
       setReports((currentReports) => [...currentReports, report]);
@@ -933,7 +973,7 @@ export default function FoodMap() {
     }));
   }
 
-  function renderComposer(targetType: Message["targetType"], targetId: number) {
+  function renderComposer(targetType: Message["targetType"], targetId: string) {
     const key = `${targetType}-${targetId}`;
     return (
       <form
@@ -963,7 +1003,7 @@ export default function FoodMap() {
     setQuery,
   }: {
     actionLabel?: string;
-    excludedIds?: number[];
+    excludedIds?: string[];
     label: string;
     onPick?: (person: Person) => void;
     query: string;
@@ -1233,7 +1273,7 @@ export default function FoodMap() {
     actions?: ReactNode;
     beforeMessages?: ReactNode;
     meta: string;
-    targetId: number;
+    targetId: string;
     targetType: Message["targetType"];
     title: string;
   }) {

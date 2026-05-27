@@ -5,7 +5,7 @@ import L from "leaflet";
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents, ZoomControl } from "react-leaflet";
 
 export type Person = {
-  id: number;
+  id: string;
   name: string;
   city: string;
   region: string;
@@ -16,7 +16,7 @@ export type Person = {
 };
 
 export type UserProfile = {
-  id: number;
+  id: string;
   pseudo: string;
   city: string;
   region: string;
@@ -63,7 +63,7 @@ export function normalizeKey(value: string) {
   return value.trim().toLowerCase();
 }
 
-export function stableEditCount(id: number, name: string) {
+export function stableEditCount(id: number | string, name: string) {
   const source = `${id}:${name}`;
   let hash = 0;
 
@@ -519,16 +519,16 @@ function nextZoomForLevel(level: ClusterLevel) {
 }
 
 function touchGroupId(items: Person[]) {
-  return `touch-${items.map((person) => person.id).sort((a, b) => a - b).join("-")}`;
+  return `touch-${items.map((person) => person.id).sort((a, b) => a.localeCompare(b)).join("-")}`;
 }
 
-function groupContainsPendingOpen(group: PersonGroup, pendingOpenIds: number[] | null) {
+function groupContainsPendingOpen(group: PersonGroup, pendingOpenIds: string[] | null) {
   if (!pendingOpenIds) {
     return false;
   }
 
-  const groupIds = group.people.map((person) => person.id).sort((a, b) => a - b).join("-");
-  const pendingIds = [...pendingOpenIds].sort((a, b) => a - b).join("-");
+  const groupIds = group.people.map((person) => person.id).sort((a, b) => a.localeCompare(b)).join("-");
+  const pendingIds = [...pendingOpenIds].sort((a, b) => a.localeCompare(b)).join("-");
 
   return groupIds === pendingIds;
 }
@@ -556,9 +556,9 @@ function PersonMarkers({
   onPersonSelect: (person: Person) => void;
   onScopeSelect: (scope: SelectedScope) => void;
   people: Person[];
-  pendingOpenIds: number[] | null;
+  pendingOpenIds: string[] | null;
   setExpandedGroupId: (groupId: string | null) => void;
-  setPendingOpenIds: (ids: number[] | null) => void;
+  setPendingOpenIds: (ids: string[] | null) => void;
 }) {
   const map = useMap();
   const [mapVersion, setMapVersion] = useState(0);
@@ -706,10 +706,10 @@ export function MapSection({
   expandedGroupId: string | null;
   onPersonSelect: (person: Person) => void;
   onScopeSelect: (scope: SelectedScope) => void;
-  pendingOpenIds: number[] | null;
+  pendingOpenIds: string[] | null;
   people: Person[];
   setExpandedGroupId: (groupId: string | null) => void;
-  setPendingOpenIds: (ids: number[] | null) => void;
+  setPendingOpenIds: (ids: string[] | null) => void;
 }) {
   return (
     <MapContainer center={[46.8, 2.2]} zoom={5} zoomControl={false} scrollWheelZoom className="leaflet-map">
