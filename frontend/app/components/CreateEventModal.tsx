@@ -107,7 +107,7 @@ export default function CreateEventModal({ username, onClose, onCreated }: Props
               <a href="https://www.openstreetmap.org" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">
                 openstreetmap.org
               </a>{" "}
-              → right-click a location → "Show address"
+              → right-click a location → &quot;Show address&quot;
             </p>
           </div>
 

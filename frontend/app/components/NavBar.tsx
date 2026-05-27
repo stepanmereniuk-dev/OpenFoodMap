@@ -1,18 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { getUsername, clearUsername } from "../lib/auth";
 
 export default function NavBar() {
-  const [username, setUsernameState] = useState<string | null>(null);
+  const [username, setUsernameState] = useState<string | null>(() => getUsername());
   const router = useRouter();
-  const pathname = usePathname();
-
-  useEffect(() => {
-    setUsernameState(getUsername());
-  }, [pathname]);
 
   function handleLogout() {
     clearUsername();

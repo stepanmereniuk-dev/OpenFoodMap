@@ -32,6 +32,8 @@ export default function EventsPage() {
   }
 
   useEffect(() => {
+    // This page is a legacy API view; fetching once on mount is intentional.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchEvents();
   }, []);
 

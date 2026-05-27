@@ -43,7 +43,7 @@ function FlyTo({ event }: { event: MapEvent | null }) {
     if (event?.lat != null && event?.lng != null) {
       map.flyTo([event.lat, event.lng], 13, { duration: 1.2 });
     }
-  }, [event?.id, event?.title]);
+  }, [event?.id, event?.lat, event?.lng, event?.title, map]);
   return null;
 }
 
