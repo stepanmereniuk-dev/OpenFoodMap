@@ -274,7 +274,7 @@ export default function FoodMap() {
     discussion: listPageSize,
     events: listPageSize,
   });
-  const [form, setForm] = useState({ invisible: false, place: "", pseudo: "" });
+  const [form, setForm] = useState({ place: "", pseudo: "" });
   const [eventForm, setEventForm] = useState({ date: "", title: "" });
   const [channelTitle, setChannelTitle] = useState("");
   const [threadForm, setThreadForm] = useState({ memberQuery: "", title: "" });
@@ -549,7 +549,6 @@ export default function FoodMap() {
       const formData = new FormData(event.currentTarget);
       const pseudo = String(formData.get("pseudo") ?? form.pseudo).trim();
       const place = String(formData.get("place") ?? form.place).trim();
-      const visible = !formData.has("invisible");
       let location: Awaited<ReturnType<typeof geocodeLocation>>;
 
       try {
@@ -569,17 +568,14 @@ export default function FoodMap() {
         city: location.city,
         region: location.region,
         country: location.country,
-        position: visible ? location.position : null,
-        visible,
+        position: location.position,
+        visible: true,
         color: colorOptions[0],
       });
 
       setProfile(nextProfile);
       setProfileId(nextProfile.id);
-
-      if (visible) {
-        setPeople((currentPeople) => [...currentPeople, profileToPerson(nextProfile)]);
-      }
+      setPeople((currentPeople) => [...currentPeople, profileToPerson(nextProfile)]);
     } catch {
       setStatus("Profil non enregistré: MongoDB est indisponible.");
     } finally {
@@ -1879,19 +1875,6 @@ export default function FoodMap() {
                   required
                   value={form.place}
                 />
-              </label>
-
-              <label className="visibility-row">
-                <input
-                  checked={form.invisible}
-                  name="invisible"
-                  onChange={(event) => setForm({ ...form, invisible: event.target.checked })}
-                  type="checkbox"
-                />
-                <span>
-                  Ne pas être visible sur la carte
-                  <small>Ton profil reste utilisable, mais aucun point n&apos;est ajouté.</small>
-                </span>
               </label>
 
               <button className="submit-person" disabled={isSaving} type="submit">

@@ -1556,39 +1556,6 @@ select {
   box-shadow: 0 0 0 2px rgb(255 135 20 / 18%);
 }
 
-.login-form .visibility-row {
-  align-items: flex-start;
-  background: #fff;
-  border: 1px solid #d8cbc5;
-  cursor: pointer;
-  display: flex;
-  gap: 10px;
-  line-height: 1.25;
-  margin: 4px 0;
-  padding: 10px;
-  user-select: none;
-}
-
-.login-form .visibility-row input {
-  accent-color: var(--off-orange);
-  flex: 0 0 auto;
-  height: 18px;
-  margin: 1px 0 0;
-  width: 18px;
-}
-
-.login-form .visibility-row span {
-  display: grid;
-  gap: 3px;
-}
-
-.login-form .visibility-row small {
-  color: #6b5b52;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.25;
-}
-
 .submit-person {
   align-items: center;
   background: var(--off-brown);
