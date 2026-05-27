@@ -15,7 +15,7 @@ import {
   withEditCounts,
 } from "./map-section";
 import type { Person, SelectedScope, UserProfile } from "./map-section";
-import { API_BASE, createOffItem, getOffState, updateOffItem } from "../lib/api";
+import { createOffItem, getOffState, updateOffItem } from "../lib/api";
 
 type ActiveTab = "events" | "channels" | "discussion";
 type MembershipRole = "creator" | "admin" | "member";
@@ -405,13 +405,6 @@ export default function FoodMap() {
     activeTab === "discussion" && selectedThreadId
       ? threads.find((thread) => thread.id === selectedThreadId) ?? null
       : null;
-  const activeChatId =
-    activeTab === "events"
-      ? selectedEventId
-      : activeTab === "channels"
-        ? selectedChannelId
-        : selectedThreadId;
-
   const refreshOffState = useCallback(async (showError = false) => {
     try {
       const state = await getOffState<OffState>();
@@ -444,26 +437,6 @@ export default function FoodMap() {
       window.clearTimeout(timeoutId);
     };
   }, [refreshOffState]);
-
-  useEffect(() => {
-    if (!activeChatId) {
-      return;
-    }
-
-    const source = new EventSource(`${API_BASE}/api/off/stream/`);
-    source.addEventListener("off-message", (event) => {
-      const data = JSON.parse((event as MessageEvent).data) as { item?: Partial<Message> };
-
-      if (data.item) {
-        const message = normalizeMessage(data.item);
-        setMessages((currentMessages) => upsertById(currentMessages, message));
-      }
-    });
-
-    return () => {
-      source.close();
-    };
-  }, [activeChatId]);
 
   useEffect(() => {
     if (profileId) {
