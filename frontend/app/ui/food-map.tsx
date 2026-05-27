@@ -418,12 +418,12 @@ export default function FoodMap() {
       const profiles = uniqueById((state.profiles ?? []).map((currentProfile) => ({ ...currentProfile, id: String(currentProfile.id) })));
 
       setPeople(withEditCounts(profiles.filter((item) => item.visible && item.position).map(profileToPerson)));
-      setChannels((state.channels ?? []).map(normalizeChannel));
-      setThreads((state.threads ?? []).map(normalizeThread));
-      setEvents((state.events ?? []).map(normalizeEvent));
-      setMessages((state.messages ?? []).map(normalizeMessage));
-      setReports(state.reports ?? []);
-      setLogs(state.audit_logs ?? []);
+      setChannels(uniqueById((state.channels ?? []).map(normalizeChannel)));
+      setThreads(uniqueById((state.threads ?? []).map(normalizeThread)));
+      setEvents(uniqueById((state.events ?? []).map(normalizeEvent)));
+      setMessages(uniqueById((state.messages ?? []).map(normalizeMessage)));
+      setReports(uniqueById((state.reports ?? []).map((report) => ({ ...report, id: String(report.id) }))));
+      setLogs(uniqueById((state.audit_logs ?? []).map((log) => ({ ...log, id: String(log.id) }))));
 
       if (profileId) {
         setProfile(profiles.find((item) => item.id === profileId) ?? null);
@@ -1023,8 +1023,16 @@ export default function FoodMap() {
       >
         <input
           aria-label="Message"
+          enterKeyHint="send"
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              addMessage(targetType, targetId);
+            }
+          }}
           onChange={(event) => setMessageDrafts((drafts) => ({ ...drafts, [key]: event.target.value }))}
           placeholder="Écrire un message"
+          type="text"
           value={messageDrafts[key] ?? ""}
         />
         <button type="submit">Envoyer</button>
