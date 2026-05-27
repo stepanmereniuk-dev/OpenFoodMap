@@ -34,10 +34,14 @@ def off_state(request):
     if request.method != 'GET':
         return cors(request, JsonResponse({'error': 'Method not allowed'}, status=405))
 
-    return cors(request, JsonResponse({
+    state = {
         collection: collection_documents(collection)
         for collection in OFF_COLLECTIONS
-    }))
+        if collection != 'messages'
+    }
+    state['messages'] = []
+
+    return cors(request, JsonResponse(state))
 
 
 @csrf_exempt
@@ -51,7 +55,21 @@ def off_collection(request, collection_name):
     collection = get_db()[collection_name]
 
     if request.method == 'GET':
-        return cors(request, JsonResponse({collection_name: collection_documents(collection_name)}))
+        query = {}
+
+        if collection_name == 'messages':
+            target_type = request.GET.get('targetType', '').strip()
+            target_id = request.GET.get('targetId', '').strip()
+
+            if not target_type or not target_id:
+                return cors(request, JsonResponse({collection_name: []}))
+
+            query = {
+                'targetType': target_type,
+                'targetId': target_id,
+            }
+
+        return cors(request, JsonResponse({collection_name: collection_documents(collection_name, query)}))
 
     if request.method == 'POST':
         body = parse_body(request)

@@ -15,7 +15,7 @@ import {
   withEditCounts,
 } from "./map-section";
 import type { Person, SelectedScope, UserProfile } from "./map-section";
-import { createOffItem, getOffState, updateOffItem } from "../lib/api";
+import { createOffItem, getOffMessages, getOffState, updateOffItem } from "../lib/api";
 
 type ActiveTab = "events" | "channels" | "discussion";
 type MembershipRole = "creator" | "admin" | "member";
@@ -405,6 +405,16 @@ export default function FoodMap() {
     activeTab === "discussion" && selectedThreadId
       ? threads.find((thread) => thread.id === selectedThreadId) ?? null
       : null;
+  const activeChatTarget = useMemo(() =>
+    openedEvent
+      ? { targetId: openedEvent.id, targetType: "event" as const }
+      : openedChannel
+        ? { targetId: openedChannel.id, targetType: "channel" as const }
+        : openedThread
+          ? { targetId: openedThread.id, targetType: "thread" as const }
+          : null,
+    [openedChannel, openedEvent, openedThread],
+  );
   const refreshOffState = useCallback(async (showError = false) => {
     try {
       const state = await getOffState<OffState>();
@@ -437,6 +447,47 @@ export default function FoodMap() {
       window.clearTimeout(timeoutId);
     };
   }, [refreshOffState]);
+
+  useEffect(() => {
+    if (!activeChatTarget) {
+      return;
+    }
+
+    let isMounted = true;
+    const { targetId, targetType } = activeChatTarget;
+
+    async function refreshChatMessages() {
+      try {
+        const data = await getOffMessages<Message>(targetType, targetId);
+
+        if (!isMounted) {
+          return;
+        }
+
+        const nextMessages = uniqueById(data.messages.map(normalizeMessage));
+        setMessages((currentMessages) => [
+          ...currentMessages.filter(
+            (message) =>
+              message.targetType !== targetType ||
+              message.targetId !== targetId,
+          ),
+          ...nextMessages,
+        ]);
+      } catch {
+        // Keep the current chat usable if a background refresh fails.
+      }
+    }
+
+    void refreshChatMessages();
+    const intervalId = window.setInterval(() => {
+      void refreshChatMessages();
+    }, 2000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [activeChatTarget]);
 
   useEffect(() => {
     if (profileId) {

@@ -31,6 +31,12 @@ export function getOffState<T>() {
   return requestJson<T>('/api/off/state/');
 }
 
+export function getOffMessages<T>(targetType: string, targetId: string) {
+  const params = new URLSearchParams({ targetId, targetType });
+
+  return requestJson<{ messages: T[] }>(`/api/off/messages/?${params.toString()}`);
+}
+
 export async function createOffItem<T>(collection: OffCollection, item: Omit<T, 'id'> & { id?: string | number }) {
   const data = await requestJson<{ item: T }>(`/api/off/${collection}/`, {
     body: JSON.stringify(item),
