@@ -463,7 +463,7 @@ export default function FoodMap() {
     return () => {
       source.close();
     };
-  }, [activeChatId, refreshOffState]);
+  }, [activeChatId]);
 
   useEffect(() => {
     if (profileId) {
@@ -535,7 +535,7 @@ export default function FoodMap() {
         body,
         createdAt: nowIso(),
       });
-      setMessages((currentMessages) => [...currentMessages, message]);
+      setMessages((currentMessages) => upsertById(currentMessages, message));
       setMessageDrafts((drafts) => ({ ...drafts, [key]: "" }));
     } catch {
       setStatus("Message non envoyé: MongoDB est indisponible.");

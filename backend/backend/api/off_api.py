@@ -1,4 +1,6 @@
 import json
+from queue import Empty, Full, Queue
+from threading import Event, Lock, Thread
 
 from django.http import JsonResponse, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -17,6 +19,8 @@ OFF_COLLECTIONS = {
     'threads',
     'users',
 }
+SUBSCRIBERS = set()
+SUBSCRIBERS_LOCK = Lock()
 
 
 def parse_body(request):
@@ -28,6 +32,64 @@ def parse_body(request):
 
 def sse_event(event_name, data):
     return f'event: {event_name}\ndata: {json.dumps(data)}\n\n'
+
+
+def subscribe():
+    subscriber = Queue(maxsize=100)
+
+    with SUBSCRIBERS_LOCK:
+        SUBSCRIBERS.add(subscriber)
+
+    return subscriber
+
+
+def unsubscribe(subscriber):
+    with SUBSCRIBERS_LOCK:
+        SUBSCRIBERS.discard(subscriber)
+
+
+def queue_event(subscriber, event_name, data):
+    try:
+        subscriber.put_nowait(sse_event(event_name, data))
+    except Full:
+        unsubscribe(subscriber)
+
+
+def publish_event(event_name, data):
+    with SUBSCRIBERS_LOCK:
+        subscribers = list(SUBSCRIBERS)
+
+    for subscriber in subscribers:
+        queue_event(subscriber, event_name, data)
+
+
+def publish_message(item, operation):
+    publish_event('off-message', {
+        'item': json_document(item),
+        'operation': operation,
+    })
+
+
+def watch_messages(subscriber, stop_event):
+    pipeline = [{'$match': {'operationType': {'$in': ['insert', 'replace', 'update']}}}]
+
+    try:
+        with get_db().messages.watch(pipeline, full_document='updateLookup', max_await_time_ms=10000) as changes:
+            while not stop_event.is_set():
+                change = changes.try_next()
+
+                if change is None:
+                    continue
+
+                document = change.get('fullDocument')
+                if document:
+                    queue_event(subscriber, 'off-message', {
+                        'item': json_document(document),
+                        'operation': change.get('operationType'),
+                    })
+    except Exception as error:
+        if not stop_event.is_set():
+            queue_event(subscriber, 'off-error', {'error': str(error)})
 
 
 @csrf_exempt
@@ -53,28 +115,22 @@ def off_stream(request):
         return cors(request, JsonResponse({'error': 'Method not allowed'}, status=405))
 
     def stream_changes():
+        subscriber = subscribe()
+        stop_event = Event()
+        watcher = Thread(target=watch_messages, args=(subscriber, stop_event), daemon=True)
+        watcher.start()
+
         yield sse_event('ready', {'ok': True})
 
-        pipeline = [{'$match': {'ns.coll': {'$in': sorted(OFF_COLLECTIONS)}}}]
         try:
-            with get_db().watch(pipeline, full_document='updateLookup') as changes:
-                for change in changes:
-                    collection = change.get('ns', {}).get('coll')
-                    document = change.get('fullDocument')
-
-                    if collection == 'messages' and document:
-                        yield sse_event('off-message', {
-                            'item': json_document(document),
-                            'operation': change.get('operationType'),
-                        })
-                        continue
-
-                    yield sse_event('off-change', {
-                        'collection': collection,
-                        'operation': change.get('operationType'),
-                    })
-        except Exception as error:
-            yield sse_event('off-error', {'error': str(error)})
+            while True:
+                try:
+                    yield subscriber.get(timeout=20)
+                except Empty:
+                    yield ': keepalive\n\n'
+        finally:
+            stop_event.set()
+            unsubscribe(subscriber)
 
     response = StreamingHttpResponse(stream_changes(), content_type='text/event-stream')
     response['Cache-Control'] = 'no-cache'
@@ -103,7 +159,12 @@ def off_collection(request, collection_name):
         item = dict(body)
         item['id'] = item.get('id') or new_id()
         collection.insert_one(item)
-        return cors(request, JsonResponse({'item': json_document(item)}, status=201))
+        saved_item = json_document(item)
+
+        if collection_name == 'messages':
+            publish_message(saved_item, 'insert')
+
+        return cors(request, JsonResponse({'item': saved_item}, status=201))
 
     return cors(request, JsonResponse({'error': 'Method not allowed'}, status=405))
 
@@ -141,7 +202,12 @@ def off_item(request, collection_name, item_id):
         if result.matched_count == 0:
             return cors(request, JsonResponse({'error': 'Not found'}, status=404))
 
-        return cors(request, JsonResponse({'item': json_document(collection.find_one(query))}))
+        saved_item = json_document(collection.find_one(query))
+
+        if collection_name == 'messages':
+            publish_message(saved_item, 'update')
+
+        return cors(request, JsonResponse({'item': saved_item}))
 
     if request.method == 'DELETE':
         result = collection.delete_one(query)
