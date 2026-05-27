@@ -1426,7 +1426,9 @@ select {
   font-size: 12px;
   line-height: 1.35;
   margin: 0;
+  overflow-wrap: anywhere;
   padding: 8px;
+  white-space: pre-wrap;
 }
 
 .message-bubble strong {

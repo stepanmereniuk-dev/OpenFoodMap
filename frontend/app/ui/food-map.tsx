@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
 import {
   MapSection,
@@ -15,7 +15,7 @@ import {
   withEditCounts,
 } from "./map-section";
 import type { Person, SelectedScope, UserProfile } from "./map-section";
-import { createOffItem, getOffMessages, getOffState, updateOffItem } from "../lib/api";
+import { createOffItem, getOffMessages, getOffProfiles, getOffState, updateOffItem } from "../lib/api";
 
 type ActiveTab = "events" | "channels" | "discussion";
 type MembershipRole = "creator" | "admin" | "member";
@@ -286,6 +286,7 @@ export default function FoodMap() {
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const chatMessagesRef = useRef<HTMLDivElement | null>(null);
   const hasProfile = profile !== null;
   const currentUser = profile ? { id: profile.id, name: profile.pseudo } : fallbackAuthor;
   const selectedPerson = selectedPersonId ? people.find((person) => person.id === selectedPersonId) ?? null : null;
@@ -415,28 +416,52 @@ export default function FoodMap() {
           : null,
     [openedChannel, openedEvent, openedThread],
   );
+  const activeChatMessageCount = useMemo(() => {
+    if (!activeChatTarget) {
+      return 0;
+    }
+
+    return messages.filter(
+      (message) =>
+        message.targetType === activeChatTarget.targetType &&
+        message.targetId === activeChatTarget.targetId,
+    ).length;
+  }, [activeChatTarget, messages]);
+  const applyProfiles = useCallback((profileItems: UserProfile[]) => {
+    const profiles = uniqueById(profileItems.map((currentProfile) => ({ ...currentProfile, id: String(currentProfile.id) })));
+
+    setPeople(withEditCounts(profiles.filter((item) => item.visible && item.position).map(profileToPerson)));
+
+    if (profileId) {
+      setProfile(profiles.find((item) => item.id === profileId) ?? null);
+    }
+  }, [profileId]);
   const refreshOffState = useCallback(async (showError = false) => {
     try {
       const state = await getOffState<OffState>();
-      const profiles = uniqueById((state.profiles ?? []).map((currentProfile) => ({ ...currentProfile, id: String(currentProfile.id) })));
 
-      setPeople(withEditCounts(profiles.filter((item) => item.visible && item.position).map(profileToPerson)));
+      applyProfiles(state.profiles ?? []);
       setChannels(uniqueById((state.channels ?? []).map(normalizeChannel)));
       setThreads(uniqueById((state.threads ?? []).map(normalizeThread)));
       setEvents(uniqueById((state.events ?? []).map(normalizeEvent)));
       setMessages(uniqueById((state.messages ?? []).map(normalizeMessage)));
       setReports(uniqueById((state.reports ?? []).map((report) => ({ ...report, id: String(report.id) }))));
       setLogs(uniqueById((state.audit_logs ?? []).map((log) => ({ ...log, id: String(log.id) }))));
-
-      if (profileId) {
-        setProfile(profiles.find((item) => item.id === profileId) ?? null);
-      }
     } catch {
       if (showError) {
         setStatus("Connexion serveur impossible. Les données Mongo ne sont pas disponibles.");
       }
     }
-  }, [profileId]);
+  }, [applyProfiles]);
+  const refreshProfiles = useCallback(async () => {
+    try {
+      const data = await getOffProfiles<UserProfile>();
+
+      applyProfiles(data.profiles ?? []);
+    } catch {
+      // The map keeps the last known players if a background refresh fails.
+    }
+  }, [applyProfiles]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -447,6 +472,16 @@ export default function FoodMap() {
       window.clearTimeout(timeoutId);
     };
   }, [refreshOffState]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void refreshProfiles();
+    }, 10000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [refreshProfiles]);
 
   useEffect(() => {
     if (!activeChatTarget) {
@@ -488,6 +523,16 @@ export default function FoodMap() {
       window.clearInterval(intervalId);
     };
   }, [activeChatTarget]);
+
+  useEffect(() => {
+    const messageList = chatMessagesRef.current;
+
+    if (!messageList) {
+      return;
+    }
+
+    messageList.scrollTop = messageList.scrollHeight;
+  }, [activeChatMessageCount, activeChatTarget]);
 
   useEffect(() => {
     if (profileId) {
@@ -1348,7 +1393,9 @@ export default function FoodMap() {
     targetType: Message["targetType"];
     title: string;
   }) {
-    const itemMessages = messages.filter((message) => message.targetType === targetType && message.targetId === targetId);
+    const itemMessages = messages
+      .filter((message) => message.targetType === targetType && message.targetId === targetId)
+      .sort((first, second) => Date.parse(first.createdAt) - Date.parse(second.createdAt));
 
     return (
       <article className={isConfigOpen ? "chat-view chat-view-config-open" : "chat-view"}>
@@ -1374,7 +1421,7 @@ export default function FoodMap() {
         </div>
         {isConfigOpen && renderConfigPanel()}
         {beforeMessages}
-        <div className="message-list chat-messages">
+        <div className="message-list chat-messages" ref={chatMessagesRef}>
           {itemMessages.length > 0 ? (
             itemMessages.map((message) => (
               <p className="message-bubble" key={message.id}>
