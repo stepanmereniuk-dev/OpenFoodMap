@@ -1,14 +1,8 @@
 import json
-from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from pymongo import MongoClient
 from .cors_utils import cors
-
-
-def get_db():
-    client = MongoClient(settings.MONGO_URI)
-    return client[settings.MONGO_DB]
+from .mongo import collection_documents, get_db
 
 
 @csrf_exempt
@@ -19,7 +13,7 @@ def commenters(request):
     db = get_db()
 
     if request.method == 'GET':
-        all_commenters = list(db.commenters.find({}, {'_id': 0}))
+        all_commenters = collection_documents('commenters')
         return cors(request, JsonResponse({'commenters': all_commenters}))
 
     if request.method == 'POST':

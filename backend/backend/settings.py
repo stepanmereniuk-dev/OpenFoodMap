@@ -8,9 +8,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-2(y_sh^9ta(0!83mj^5byjpmv0vyz#ni3532dfe7fto-+e!1ju')
+SECRET_KEY = os.environ.get('SECRET_KEY')
 
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+if not SECRET_KEY:
+    raise RuntimeError('SECRET_KEY environment variable is required')
+
+DEBUG = os.environ.get('DEBUG', 'False').lower() in {'1', 'true', 'yes', 'on'}
 
 _render_host = os.environ.get('RENDER_EXTERNAL_HOSTNAME', '')
 ALLOWED_HOSTS = [
@@ -68,13 +71,18 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.dummy',
     }
 }
 
-MONGO_URI = 'mongodb+srv://open_food_map_db:K3ixEUTqltJvcikG@cluster0.qo89qlk.mongodb.net/?appName=Cluster0'
-MONGO_DB = 'open_food_map_db'
+MONGO_URI = os.environ.get('MONGO_URI')
+MONGO_DB = os.environ.get('MONGO_DB')
+
+if not MONGO_URI:
+    raise RuntimeError('MONGO_URI environment variable is required')
+
+if not MONGO_DB:
+    raise RuntimeError('MONGO_DB environment variable is required')
 
 
 # Password validation

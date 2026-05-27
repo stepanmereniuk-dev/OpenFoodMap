@@ -1,15 +1,9 @@
 import json
 from datetime import datetime, timezone
-from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from pymongo import MongoClient
 from .cors_utils import cors
-
-
-def get_db():
-    client = MongoClient(settings.MONGO_URI)
-    return client[settings.MONGO_DB]
+from .mongo import get_db, json_document, new_id
 
 
 @csrf_exempt
@@ -23,7 +17,7 @@ def comments(request):
         event_id = request.GET.get('event_id', '').strip()
         if not event_id:
             return cors(request, JsonResponse({'error': 'event_id is required'}, status=400))
-        result = list(db.comments.find({'event_id': event_id}, {'_id': 0}))
+        result = [json_document(comment) for comment in db.comments.find({'event_id': event_id})]
         return cors(request, JsonResponse({'comments': result}))
 
     if request.method == 'POST':
@@ -40,6 +34,7 @@ def comments(request):
             return cors(request, JsonResponse({'error': 'event_id, username and text are required'}, status=400))
 
         db.comments.insert_one({
+            'id': new_id(),
             'event_id': event_id,
             'username': username,
             'text': text,

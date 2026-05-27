@@ -1,19 +1,14 @@
-from django.conf import settings
 from django.http import JsonResponse
-from pymongo import MongoClient
-
-
-client = MongoClient(settings.MONGO_URI)
-db = client[settings.MONGO_DB]
+from backend.api.mongo import get_db, json_document
 
 
 def get_products(request):
-    products = list(db.products.find({}, {'_id': 0}).limit(20))
+    products = [json_document(product) for product in get_db().products.find({}).limit(20)]
     return JsonResponse(products, safe=False)
 
 
 def get_product(request, barcode):
-    product = db.products.find_one({'code': barcode}, {'_id': 0})
+    product = json_document(get_db().products.find_one({'code': barcode}))
     if product is None:
         return JsonResponse({'error': 'Product not found'}, status=404)
     return JsonResponse(product)

@@ -1,6 +1,17 @@
 from django.contrib import admin
 from django.urls import path, include
-from .api import test_url, test_mongodb_connection, create_user, login_user, commenters, events, comments
+from .api import (
+    comments,
+    commenters,
+    create_user,
+    events,
+    login_user,
+    off_collection,
+    off_item,
+    off_state,
+    test_mongodb_connection,
+    test_url,
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -12,4 +23,7 @@ urlpatterns = [
     path('api/commenters/', commenters),
     path('api/events/', events),
     path('api/comments/', comments),
+    path('api/off/state/', off_state),
+    path('api/off/<str:collection_name>/', off_collection),
+    path('api/off/<str:collection_name>/<str:item_id>/', off_item),
 ]

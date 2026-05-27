@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
 import {
   MapSection,
-  defaultPeople,
   geocodeLocation,
   itemScopeMatches,
   localPlaces,
@@ -16,6 +15,7 @@ import {
   withEditCounts,
 } from "./map-section";
 import type { Person, SelectedScope, UserProfile } from "./map-section";
+import { createOffItem, getOffState, updateOffItem } from "../lib/api";
 
 type ActiveTab = "events" | "channels" | "discussion";
 type MembershipRole = "creator" | "admin" | "member";
@@ -73,6 +73,16 @@ type AuditLog = {
   createdAt: string;
 };
 
+type OffState = {
+  audit_logs?: AuditLog[];
+  channels?: Channel[];
+  events?: MapEvent[];
+  messages?: Message[];
+  profiles?: UserProfile[];
+  reports?: Report[];
+  threads?: PrivateThread[];
+};
+
 type ExactPersonInputState = {
   candidate: Person | null;
   completion: string | null;
@@ -81,14 +91,7 @@ type ExactPersonInputState = {
 
 const colorOptions = ["#256f56", "#d68b2f", "#b94c43", "#385f9f", "#7a559a"];
 const listPageSize = 10;
-const peopleStorageKey = "open-food-map-people";
-const profileStorageKey = "open-food-map-profile";
-const channelsStorageKey = "open-food-map-channels";
-const threadsStorageKey = "open-food-map-threads";
-const eventsStorageKey = "open-food-map-events";
-const messagesStorageKey = "open-food-map-messages";
-const reportsStorageKey = "open-food-map-reports";
-const logsStorageKey = "open-food-map-logs";
+const profileIdStorageKey = "open-food-map-profile-id";
 
 const fallbackAuthor = { id: 0, name: "Session" };
 let localIdCounter = 200_000;
@@ -104,14 +107,6 @@ function textIncludes(value: string, query: string) {
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-function stableProfileId(profile: Partial<UserProfile> | null) {
-  if (profile?.id) {
-    return profile.id;
-  }
-
-  return 50_000 + stableEditCount(profile?.position?.[0] ? Math.round(profile.position[0] * 1000) : 0, profile?.pseudo ?? "local");
 }
 
 function readLocal<T>(key: string, fallback: T) {
@@ -145,19 +140,6 @@ function writeLocal<T>(key: string, value: T) {
   }
 }
 
-function readProfile() {
-  const savedProfile = readLocal<Partial<UserProfile> | null>(profileStorageKey, null);
-
-  if (!savedProfile) {
-    return null;
-  }
-
-  return {
-    ...savedProfile,
-    id: stableProfileId(savedProfile),
-  } as UserProfile;
-}
-
 function withEventAdmins(items: MapEvent[]) {
   return items.map((eventItem) => ({
     ...eventItem,
@@ -174,6 +156,19 @@ function withChannelAdmins(items: Channel[]) {
 
 function targetKey(targetType: Message["targetType"], targetId: number) {
   return `${targetType}-${targetId}`;
+}
+
+function profileToPerson(profile: UserProfile): Person {
+  return {
+    id: profile.id,
+    name: profile.pseudo,
+    city: profile.city || profile.country,
+    region: profile.region || profile.country,
+    country: profile.country,
+    color: profile.color,
+    position: profile.position ?? localPlaces.france.position,
+    editCount: stableEditCount(profile.id, profile.pseudo),
+  };
 }
 
 function sortByMode<T extends { title: string; createdAt: string }>(
@@ -195,53 +190,15 @@ function sortByMode<T extends { title: string; createdAt: string }>(
 }
 
 export default function FoodMap() {
-  const [profile, setProfile] = useState<UserProfile | null>(() => readProfile());
-  const [people, setPeople] = useState<Person[]>(() => withEditCounts(readLocal<Person[]>(peopleStorageKey, defaultPeople)));
-  const [channels, setChannels] = useState<Channel[]>(() => withChannelAdmins(readLocal<Channel[]>(channelsStorageKey, [])));
-  const [threads, setThreads] = useState<PrivateThread[]>(() => readLocal<PrivateThread[]>(threadsStorageKey, []));
-  const [events, setEvents] = useState<MapEvent[]>(() =>
-    withEventAdmins(readLocal<MapEvent[]>(eventsStorageKey, [
-      {
-        id: 1,
-        title: "Table ouverte des producteurs",
-        date: "2026-05-28",
-        scope: { level: "city", label: "Paris", country: "France", region: "Ile-de-France", city: "Paris" },
-        creatorId: 101,
-        admins: [101],
-        participantIds: [101],
-        createdAt: "2026-05-20T10:00:00.000Z",
-      },
-      {
-        id: 2,
-        title: "Cuisine de quartier",
-        date: "2026-05-30",
-        scope: {
-          level: "city",
-          label: "Marseille",
-          country: "France",
-          region: "Provence-Alpes-Cote d'Azur",
-          city: "Marseille",
-        },
-        creatorId: 104,
-        admins: [104],
-        participantIds: [104],
-        createdAt: "2026-05-21T10:00:00.000Z",
-      },
-      {
-        id: 3,
-        title: "Cartographie des initiatives OFF",
-        date: "2026-06-02",
-        scope: { level: "global", label: "Toute la carte" },
-        creatorId: 101,
-        admins: [101],
-        participantIds: [101, 102],
-        createdAt: "2026-05-22T10:00:00.000Z",
-      },
-    ])),
-  );
-  const [messages, setMessages] = useState<Message[]>(() => readLocal<Message[]>(messagesStorageKey, []));
-  const [reports, setReports] = useState<Report[]>(() => readLocal<Report[]>(reportsStorageKey, []));
-  const [logs, setLogs] = useState<AuditLog[]>(() => readLocal<AuditLog[]>(logsStorageKey, []));
+  const [profileId, setProfileId] = useState<number | null>(() => readLocal<number | null>(profileIdStorageKey, null));
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [threads, setThreads] = useState<PrivateThread[]>([]);
+  const [events, setEvents] = useState<MapEvent[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [, setReports] = useState<Report[]>([]);
+  const [logs, setLogs] = useState<AuditLog[]>([]);
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
   const [pendingOpenIds, setPendingOpenIds] = useState<number[] | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("events");
@@ -392,39 +349,49 @@ export default function FoodMap() {
     activeTab === "discussion" && selectedThreadId
       ? threads.find((thread) => thread.id === selectedThreadId) ?? null
       : null;
-  useEffect(() => {
-    writeLocal(peopleStorageKey, people);
-  }, [people]);
 
   useEffect(() => {
-    if (profile) {
-      writeLocal(profileStorageKey, profile);
+    let isMounted = true;
+
+    async function loadState() {
+      try {
+        const state = await getOffState<OffState>();
+
+        if (!isMounted) {
+          return;
+        }
+
+        const profiles = state.profiles ?? [];
+        setPeople(withEditCounts(profiles.filter((item) => item.visible && item.position).map(profileToPerson)));
+        setChannels(withChannelAdmins(state.channels ?? []));
+        setThreads(state.threads ?? []);
+        setEvents(withEventAdmins(state.events ?? []));
+        setMessages(state.messages ?? []);
+        setReports(state.reports ?? []);
+        setLogs(state.audit_logs ?? []);
+
+        if (profileId) {
+          setProfile(profiles.find((item) => item.id === profileId) ?? null);
+        }
+      } catch {
+        if (isMounted) {
+          setStatus("Connexion serveur impossible. Les données Mongo ne sont pas disponibles.");
+        }
+      }
     }
-  }, [profile]);
+
+    void loadState();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [profileId]);
 
   useEffect(() => {
-    writeLocal(channelsStorageKey, channels);
-  }, [channels]);
-
-  useEffect(() => {
-    writeLocal(threadsStorageKey, threads);
-  }, [threads]);
-
-  useEffect(() => {
-    writeLocal(eventsStorageKey, events);
-  }, [events]);
-
-  useEffect(() => {
-    writeLocal(messagesStorageKey, messages);
-  }, [messages]);
-
-  useEffect(() => {
-    writeLocal(reportsStorageKey, reports);
-  }, [reports]);
-
-  useEffect(() => {
-    writeLocal(logsStorageKey, logs);
-  }, [logs]);
+    if (profileId) {
+      writeLocal(profileIdStorageKey, profileId);
+    }
+  }, [profileId]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -448,7 +415,7 @@ export default function FoodMap() {
         };
       }
       const profileId = createLocalId();
-      const nextProfile: UserProfile = {
+      const nextProfile = await createOffItem<UserProfile>("profiles", {
         id: profileId,
         pseudo,
         city: location.city,
@@ -457,33 +424,22 @@ export default function FoodMap() {
         position: visible ? location.position : null,
         visible,
         color: colorOptions[0],
-      };
+      });
 
       setProfile(nextProfile);
+      setProfileId(nextProfile.id);
 
       if (visible) {
-        setPeople((currentPeople) => [
-          ...currentPeople,
-          {
-            id: profileId,
-            name: pseudo,
-            city: location.city || location.country,
-            region: location.region || location.country,
-            country: location.country,
-            color: colorOptions[0],
-            position: location.position,
-            editCount: stableEditCount(profileId, pseudo),
-          },
-        ]);
+        setPeople((currentPeople) => [...currentPeople, profileToPerson(nextProfile)]);
       }
     } catch {
-      setStatus("Lieu introuvable. Essaie avec une ville ou un pays plus précis.");
+      setStatus("Profil non enregistré: MongoDB est indisponible.");
     } finally {
       setIsSaving(false);
     }
   }
 
-  function addMessage(targetType: Message["targetType"], targetId: number) {
+  async function addMessage(targetType: Message["targetType"], targetId: number) {
     const key = `${targetType}-${targetId}`;
     const body = messageDrafts[key]?.trim();
 
@@ -491,9 +447,8 @@ export default function FoodMap() {
       return;
     }
 
-    setMessages((currentMessages) => [
-      ...currentMessages,
-      {
+    try {
+      const message = await createOffItem<Message>("messages", {
         id: createLocalId(),
         targetType,
         targetId,
@@ -501,12 +456,15 @@ export default function FoodMap() {
         authorName: currentUser.name,
         body,
         createdAt: nowIso(),
-      },
-    ]);
-    setMessageDrafts((drafts) => ({ ...drafts, [key]: "" }));
+      });
+      setMessages((currentMessages) => [...currentMessages, message]);
+      setMessageDrafts((drafts) => ({ ...drafts, [key]: "" }));
+    } catch {
+      setStatus("Message non envoyé: MongoDB est indisponible.");
+    }
   }
 
-  function createEvent(event: FormEvent<HTMLFormElement>) {
+  async function createEvent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const title = eventForm.title.trim();
 
@@ -515,9 +473,8 @@ export default function FoodMap() {
     }
 
     const id = createLocalId();
-    setEvents((currentEvents) => [
-      ...currentEvents,
-      {
+    try {
+      const createdEvent = await createOffItem<MapEvent>("events", {
         id,
         title,
         date: eventForm.date,
@@ -526,13 +483,16 @@ export default function FoodMap() {
         admins: [currentUser.id],
         participantIds: [currentUser.id],
         createdAt: nowIso(),
-      },
-    ]);
-    setSelectedEventId(id);
-    setEventForm({ date: "", title: "" });
+      });
+      setEvents((currentEvents) => [...currentEvents, createdEvent]);
+      setSelectedEventId(createdEvent.id);
+      setEventForm({ date: "", title: "" });
+    } catch {
+      setStatus("Évènement non créé: MongoDB est indisponible.");
+    }
   }
 
-  function createChannel(event: FormEvent<HTMLFormElement>) {
+  async function createChannel(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const title = channelTitle.trim();
 
@@ -541,22 +501,24 @@ export default function FoodMap() {
     }
 
     const id = createLocalId();
-    setChannels((currentChannels) => [
-      ...currentChannels,
-      {
+    try {
+      const channel = await createOffItem<Channel>("channels", {
         id,
         title,
         scope: selectedScope,
         creatorId: currentUser.id,
         admins: [currentUser.id],
         createdAt: nowIso(),
-      },
-    ]);
-    setSelectedChannelId(id);
-    setChannelTitle("");
+      });
+      setChannels((currentChannels) => [...currentChannels, channel]);
+      setSelectedChannelId(channel.id);
+      setChannelTitle("");
+    } catch {
+      setStatus("Canal non créé: MongoDB est indisponible.");
+    }
   }
 
-  function createThread(event: FormEvent<HTMLFormElement>) {
+  async function createThread(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const member = exactPersonInputState(threadForm.memberQuery, [currentUser.id]).candidate;
 
@@ -565,21 +527,23 @@ export default function FoodMap() {
     }
 
     const id = createLocalId();
-    setThreads((currentThreads) => [
-      ...currentThreads,
-      {
+    try {
+      const thread = await createOffItem<PrivateThread>("threads", {
         id,
         title: threadForm.title.trim() || `Discussion avec ${member.name}`,
         memberIds: Array.from(new Set([currentUser.id, member.id])),
         roles: { [currentUser.id]: "creator", [member.id]: "member" },
         createdAt: nowIso(),
-      },
-    ]);
-    setSelectedThreadId(id);
-    setThreadForm({ memberQuery: "", title: "" });
+      });
+      setThreads((currentThreads) => [...currentThreads, thread]);
+      setSelectedThreadId(thread.id);
+      setThreadForm({ memberQuery: "", title: "" });
+    } catch {
+      setStatus("Discussion non créée: MongoDB est indisponible.");
+    }
   }
 
-  function openPrivateThread(person: Person) {
+  async function openPrivateThread(person: Person) {
     const existing = threads.find(
       (thread) =>
         thread.memberIds.includes(currentUser.id) &&
@@ -591,86 +555,92 @@ export default function FoodMap() {
       setSelectedThreadId(existing.id);
     } else {
       const id = createLocalId();
-      setThreads((currentThreads) => [
-        ...currentThreads,
-        {
+      try {
+        const thread = await createOffItem<PrivateThread>("threads", {
           id,
           title: `Discussion avec ${person.name}`,
           memberIds: Array.from(new Set([currentUser.id, person.id])),
           roles: { [currentUser.id]: "creator", [person.id]: "member" },
           createdAt: nowIso(),
-        },
-      ]);
-      setSelectedThreadId(id);
+        });
+        setThreads((currentThreads) => [...currentThreads, thread]);
+        setSelectedThreadId(thread.id);
+      } catch {
+        setStatus("Discussion non créée: MongoDB est indisponible.");
+        return;
+      }
     }
 
     setActiveTab("discussion");
   }
 
-  function addMemberToThread(threadId: number, personId: number) {
+  async function addMemberToThread(threadId: number, personId: number) {
     if (!personId) {
       return;
     }
 
-    setThreads((currentThreads) =>
-      currentThreads.map((thread) =>
-        thread.id === threadId
-          ? {
-              ...thread,
-              memberIds: Array.from(new Set([...thread.memberIds, personId])),
-              roles: { ...thread.roles, [personId]: thread.roles[personId] ?? "member" },
-              title: thread.title.startsWith("Discussion avec") ? "Groupe OFF" : thread.title,
-            }
-          : thread,
-      ),
-    );
-    setAddMemberQuery("");
+    const thread = threads.find((item) => item.id === threadId);
+    if (!thread) {
+      return;
+    }
+
+    try {
+      const savedThread = await updateOffItem<PrivateThread>("threads", {
+        ...thread,
+        memberIds: Array.from(new Set([...thread.memberIds, personId])),
+        roles: { ...thread.roles, [personId]: thread.roles[personId] ?? "member" },
+        title: thread.title.startsWith("Discussion avec") ? "Groupe OFF" : thread.title,
+      });
+      setThreads((currentThreads) => currentThreads.map((item) => (item.id === threadId ? savedThread : item)));
+      setAddMemberQuery("");
+    } catch {
+      setStatus("Membre non ajouté: MongoDB est indisponible.");
+    }
   }
 
-  function leaveThread(threadId: number) {
+  async function leaveThread(threadId: number) {
     const thread = threads.find((currentThread) => currentThread.id === threadId);
 
     if (!thread || thread.roles[currentUser.id] === "creator") {
       return;
     }
 
-    setThreads((currentThreads) =>
-      currentThreads.map((currentThread) => {
-        if (currentThread.id !== threadId) {
-          return currentThread;
-        }
+    const nextRoles = { ...thread.roles };
+    delete nextRoles[currentUser.id];
 
-        const nextRoles = { ...currentThread.roles };
-        delete nextRoles[currentUser.id];
-
-        return {
-          ...currentThread,
-          memberIds: currentThread.memberIds.filter((memberId) => memberId !== currentUser.id),
-          roles: nextRoles,
-        };
-      }),
-    );
-    setStatus("Discussion quittée.");
-    closeChat();
+    try {
+      const savedThread = await updateOffItem<PrivateThread>("threads", {
+        ...thread,
+        memberIds: thread.memberIds.filter((memberId) => memberId !== currentUser.id),
+        roles: nextRoles,
+      });
+      setThreads((currentThreads) => currentThreads.map((item) => (item.id === threadId ? savedThread : item)));
+      setStatus("Discussion quittée.");
+      closeChat();
+    } catch {
+      setStatus("Discussion non quittée: MongoDB est indisponible.");
+    }
   }
 
-  function removeMemberFromThread(threadId: number, personId: number) {
-    setThreads((currentThreads) =>
-      currentThreads.map((thread) => {
-        if (thread.id !== threadId || thread.roles[personId] === "creator") {
-          return thread;
-        }
+  async function removeMemberFromThread(threadId: number, personId: number) {
+    const thread = threads.find((item) => item.id === threadId);
+    if (!thread || thread.roles[personId] === "creator") {
+      return;
+    }
 
-        const nextRoles = { ...thread.roles };
-        delete nextRoles[personId];
+    const nextRoles = { ...thread.roles };
+    delete nextRoles[personId];
 
-        return {
-          ...thread,
-          memberIds: thread.memberIds.filter((memberId) => memberId !== personId),
-          roles: nextRoles,
-        };
-      }),
-    );
+    try {
+      const savedThread = await updateOffItem<PrivateThread>("threads", {
+        ...thread,
+        memberIds: thread.memberIds.filter((memberId) => memberId !== personId),
+        roles: nextRoles,
+      });
+      setThreads((currentThreads) => currentThreads.map((item) => (item.id === threadId ? savedThread : item)));
+    } catch {
+      setStatus("Membre non supprimé: MongoDB est indisponible.");
+    }
   }
 
   function personName(personId: number) {
@@ -707,118 +677,185 @@ export default function FoodMap() {
     return { candidate: null, completion, message: "Pseudo introuvable" };
   }
 
-  function addLog(label: string, detail: string) {
-    setLogs((currentLogs) => [
-      { id: createLocalId(), label, detail, createdAt: nowIso() },
-      ...currentLogs,
-    ]);
-    setIsLogModalOpen(true);
+  async function addLog(label: string, detail: string) {
+    try {
+      const log = await createOffItem<AuditLog>("audit_logs", { id: createLocalId(), label, detail, createdAt: nowIso() });
+      setLogs((currentLogs) => [log, ...currentLogs]);
+      setIsLogModalOpen(true);
+    } catch {
+      setStatus("Journal non enregistré: MongoDB est indisponible.");
+    }
   }
 
-  function addAdminToEvent(eventId: number, personId: number) {
+  async function addAdminToEvent(eventId: number, personId: number) {
     if (!personId) {
       return;
     }
 
-    setEvents((currentEvents) =>
-      currentEvents.map((eventItem) =>
-        eventItem.id === eventId
-          ? { ...eventItem, admins: Array.from(new Set([...(eventItem.admins ?? [eventItem.creatorId]), personId])) }
-          : eventItem,
-      ),
-    );
-    setAddAdminQuery("");
+    const eventItem = events.find((item) => item.id === eventId);
+    if (!eventItem) {
+      return;
+    }
+
+    try {
+      const savedEvent = await updateOffItem<MapEvent>("events", {
+        ...eventItem,
+        admins: Array.from(new Set([...(eventItem.admins ?? [eventItem.creatorId]), personId])),
+      });
+      setEvents((currentEvents) => currentEvents.map((item) => (item.id === eventId ? savedEvent : item)));
+      setAddAdminQuery("");
+    } catch {
+      setStatus("Admin non ajouté: MongoDB est indisponible.");
+    }
   }
 
-  function removeAdminFromEvent(eventId: number, personId: number) {
-    setEvents((currentEvents) =>
-      currentEvents.map((eventItem) =>
-        eventItem.id === eventId && eventItem.creatorId !== personId
-          ? { ...eventItem, admins: (eventItem.admins ?? [eventItem.creatorId]).filter((adminId) => adminId !== personId) }
-          : eventItem,
-      ),
-    );
+  async function removeAdminFromEvent(eventId: number, personId: number) {
+    const eventItem = events.find((item) => item.id === eventId);
+    if (!eventItem || eventItem.creatorId === personId) {
+      return;
+    }
+
+    try {
+      const savedEvent = await updateOffItem<MapEvent>("events", {
+        ...eventItem,
+        admins: (eventItem.admins ?? [eventItem.creatorId]).filter((adminId) => adminId !== personId),
+      });
+      setEvents((currentEvents) => currentEvents.map((item) => (item.id === eventId ? savedEvent : item)));
+    } catch {
+      setStatus("Admin non supprimé: MongoDB est indisponible.");
+    }
   }
 
-  function addAdminToChannel(channelId: number, personId: number) {
+  async function addAdminToChannel(channelId: number, personId: number) {
     if (!personId) {
       return;
     }
 
-    setChannels((currentChannels) =>
-      currentChannels.map((channel) =>
-        channel.id === channelId
-          ? { ...channel, admins: Array.from(new Set([...(channel.admins ?? [channel.creatorId]), personId])) }
-          : channel,
-      ),
-    );
-    setAddAdminQuery("");
+    const channel = channels.find((item) => item.id === channelId);
+    if (!channel) {
+      return;
+    }
+
+    try {
+      const savedChannel = await updateOffItem<Channel>("channels", {
+        ...channel,
+        admins: Array.from(new Set([...(channel.admins ?? [channel.creatorId]), personId])),
+      });
+      setChannels((currentChannels) => currentChannels.map((item) => (item.id === channelId ? savedChannel : item)));
+      setAddAdminQuery("");
+    } catch {
+      setStatus("Admin non ajouté: MongoDB est indisponible.");
+    }
   }
 
-  function removeAdminFromChannel(channelId: number, personId: number) {
-    setChannels((currentChannels) =>
-      currentChannels.map((channel) =>
-        channel.id === channelId && channel.creatorId !== personId
-          ? { ...channel, admins: (channel.admins ?? [channel.creatorId]).filter((adminId) => adminId !== personId) }
-          : channel,
-      ),
-    );
+  async function removeAdminFromChannel(channelId: number, personId: number) {
+    const channel = channels.find((item) => item.id === channelId);
+    if (!channel || channel.creatorId === personId) {
+      return;
+    }
+
+    try {
+      const savedChannel = await updateOffItem<Channel>("channels", {
+        ...channel,
+        admins: (channel.admins ?? [channel.creatorId]).filter((adminId) => adminId !== personId),
+      });
+      setChannels((currentChannels) => currentChannels.map((item) => (item.id === channelId ? savedChannel : item)));
+    } catch {
+      setStatus("Admin non supprimé: MongoDB est indisponible.");
+    }
   }
 
-  function promoteThreadAdmin(threadId: number, personId: number) {
+  async function promoteThreadAdmin(threadId: number, personId: number) {
     if (!personId) {
       return;
     }
 
-    setThreads((currentThreads) =>
-      currentThreads.map((thread) =>
-        thread.id === threadId
-          ? {
-              ...thread,
-              memberIds: Array.from(new Set([...thread.memberIds, personId])),
-              roles: { ...thread.roles, [personId]: "admin" },
-            }
-          : thread,
-      ),
-    );
-    setAddAdminQuery("");
+    const thread = threads.find((item) => item.id === threadId);
+    if (!thread) {
+      return;
+    }
+
+    try {
+      const savedThread = await updateOffItem<PrivateThread>("threads", {
+        ...thread,
+        memberIds: Array.from(new Set([...thread.memberIds, personId])),
+        roles: { ...thread.roles, [personId]: "admin" },
+      });
+      setThreads((currentThreads) => currentThreads.map((item) => (item.id === threadId ? savedThread : item)));
+      setAddAdminQuery("");
+    } catch {
+      setStatus("Admin non promu: MongoDB est indisponible.");
+    }
   }
 
-  function demoteThreadAdmin(threadId: number, personId: number) {
-    setThreads((currentThreads) =>
-      currentThreads.map((thread) =>
-        thread.id === threadId && thread.roles[personId] !== "creator"
-          ? { ...thread, roles: { ...thread.roles, [personId]: "member" } }
-          : thread,
-      ),
-    );
+  async function demoteThreadAdmin(threadId: number, personId: number) {
+    const thread = threads.find((item) => item.id === threadId);
+    if (!thread || thread.roles[personId] === "creator") {
+      return;
+    }
+
+    try {
+      const savedThread = await updateOffItem<PrivateThread>("threads", {
+        ...thread,
+        roles: { ...thread.roles, [personId]: "member" },
+      });
+      setThreads((currentThreads) => currentThreads.map((item) => (item.id === threadId ? savedThread : item)));
+    } catch {
+      setStatus("Admin non retiré: MongoDB est indisponible.");
+    }
   }
 
-  function updateEventConfig(eventId: number, updates: Partial<Pick<MapEvent, "date" | "title">>) {
-    setEvents((currentEvents) =>
-      currentEvents.map((eventItem) => (eventItem.id === eventId ? { ...eventItem, ...updates } : eventItem)),
-    );
+  async function updateEventConfig(eventId: number, updates: Partial<Pick<MapEvent, "date" | "title">>) {
+    const eventItem = events.find((item) => item.id === eventId);
+    if (!eventItem) {
+      return;
+    }
+
+    try {
+      const savedEvent = await updateOffItem<MapEvent>("events", { ...eventItem, ...updates });
+      setEvents((currentEvents) => currentEvents.map((item) => (item.id === eventId ? savedEvent : item)));
+    } catch {
+      setStatus("Configuration non enregistrée: MongoDB est indisponible.");
+    }
   }
 
-  function updateChannelConfig(channelId: number, updates: Partial<Pick<Channel, "title">>) {
-    setChannels((currentChannels) =>
-      currentChannels.map((channel) => (channel.id === channelId ? { ...channel, ...updates } : channel)),
-    );
+  async function updateChannelConfig(channelId: number, updates: Partial<Pick<Channel, "title">>) {
+    const channel = channels.find((item) => item.id === channelId);
+    if (!channel) {
+      return;
+    }
+
+    try {
+      const savedChannel = await updateOffItem<Channel>("channels", { ...channel, ...updates });
+      setChannels((currentChannels) => currentChannels.map((item) => (item.id === channelId ? savedChannel : item)));
+    } catch {
+      setStatus("Configuration non enregistrée: MongoDB est indisponible.");
+    }
   }
 
-  function updateThreadConfig(threadId: number, updates: Partial<Pick<PrivateThread, "title">>) {
-    setThreads((currentThreads) =>
-      currentThreads.map((thread) => (thread.id === threadId ? { ...thread, ...updates } : thread)),
-    );
+  async function updateThreadConfig(threadId: number, updates: Partial<Pick<PrivateThread, "title">>) {
+    const thread = threads.find((item) => item.id === threadId);
+    if (!thread) {
+      return;
+    }
+
+    try {
+      const savedThread = await updateOffItem<PrivateThread>("threads", { ...thread, ...updates });
+      setThreads((currentThreads) => currentThreads.map((item) => (item.id === threadId ? savedThread : item)));
+    } catch {
+      setStatus("Configuration non enregistrée: MongoDB est indisponible.");
+    }
   }
 
-  function reportPerson(personId: number) {
-    setReports((currentReports) => [
-      ...currentReports,
-      { id: createLocalId(), personId, reporterId: currentUser.id, createdAt: nowIso() },
-    ]);
-    addLog("Signalement", `${personName(personId)} signalé par ${currentUser.name}`);
-    setStatus("Signalement enregistré.");
+  async function reportPerson(personId: number) {
+    try {
+      const report = await createOffItem<Report>("reports", { id: createLocalId(), personId, reporterId: currentUser.id, createdAt: nowIso() });
+      setReports((currentReports) => [...currentReports, report]);
+      void addLog("Signalement", `${personName(personId)} signalé par ${currentUser.name}`);
+      setStatus("Signalement enregistré.");
+    } catch {
+      setStatus("Signalement non enregistré: MongoDB est indisponible.");
+    }
   }
 
   function handlePersonSelect(person: Person) {
@@ -1031,7 +1068,7 @@ export default function FoodMap() {
           </div>
           <button
             className="ghost-button"
-            onClick={() => addLog("Évènement", `Action de modération sur ${openedEvent.title}`)}
+            onClick={() => void addLog("Évènement", `Action de modération sur ${openedEvent.title}`)}
             type="button"
           >
             Ouvrir le journal
@@ -1088,7 +1125,7 @@ export default function FoodMap() {
           </div>
           <button
             className="ghost-button"
-            onClick={() => addLog("Canal", `Action de modération sur ${openedChannel.title}`)}
+            onClick={() => void addLog("Canal", `Action de modération sur ${openedChannel.title}`)}
             type="button"
           >
             Ouvrir le journal
@@ -1171,7 +1208,7 @@ export default function FoodMap() {
           </div>
           <button
             className="ghost-button"
-            onClick={() => addLog("Discussion", `Action de modération sur ${openedThread.title}`)}
+            onClick={() => void addLog("Discussion", `Action de modération sur ${openedThread.title}`)}
             type="button"
           >
             Ouvrir le journal
@@ -1314,20 +1351,20 @@ export default function FoodMap() {
               actions: (
                 <>
                   <button
-                    onClick={() =>
-                      setEvents((currentEvents) =>
-                        currentEvents.map((currentEvent) =>
-                          currentEvent.id === openedEvent.id
-                            ? {
-                                ...currentEvent,
-                                participantIds: openedEvent.participantIds.includes(currentUser.id)
-                                  ? currentEvent.participantIds.filter((id) => id !== currentUser.id)
-                                  : [...currentEvent.participantIds, currentUser.id],
-                              }
-                            : currentEvent,
-                        ),
-                      )
-                    }
+                    onClick={async () => {
+                      const participantIds = openedEvent.participantIds.includes(currentUser.id)
+                        ? openedEvent.participantIds.filter((id) => id !== currentUser.id)
+                        : [...openedEvent.participantIds, currentUser.id];
+
+                      try {
+                        const savedEvent = await updateOffItem<MapEvent>("events", { ...openedEvent, participantIds });
+                        setEvents((currentEvents) =>
+                          currentEvents.map((currentEvent) => (currentEvent.id === openedEvent.id ? savedEvent : currentEvent)),
+                        );
+                      } catch {
+                        setStatus("Participation non enregistrée: MongoDB est indisponible.");
+                      }
+                    }}
                     type="button"
                   >
                     {openedEvent.participantIds.includes(currentUser.id) ? "Annuler participation" : "Participer"}
@@ -1366,7 +1403,7 @@ export default function FoodMap() {
                 <button
                   className="ghost-button"
                   onClick={() => {
-                    addLog("Signalement", `Canal signalé : ${openedChannel.title}`);
+                    void addLog("Signalement", `Canal signalé : ${openedChannel.title}`);
                     setStatus("Signalement du canal enregistré.");
                   }}
                   type="button"
@@ -1386,7 +1423,7 @@ export default function FoodMap() {
                 <button
                   className="ghost-button"
                   onClick={() => {
-                    addLog("Signalement", `Discussion signalée : ${openedThread.title}`);
+                    void addLog("Signalement", `Discussion signalée : ${openedThread.title}`);
                     setStatus("Signalement de la discussion enregistré.");
                   }}
                   type="button"

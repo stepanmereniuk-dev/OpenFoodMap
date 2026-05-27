@@ -1,15 +1,8 @@
 import json
-import uuid
-from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from pymongo import MongoClient
 from .cors_utils import cors
-
-
-def get_db():
-    client = MongoClient(settings.MONGO_URI)
-    return client[settings.MONGO_DB]
+from .mongo import collection_documents, get_db, new_id
 
 
 @csrf_exempt
@@ -20,7 +13,7 @@ def events(request):
     db = get_db()
 
     if request.method == 'GET':
-        all_events = list(db.events.find({}, {'_id': 0}))
+        all_events = collection_documents('events')
         return cors(request, JsonResponse({'events': all_events}))
 
     if request.method == 'POST':
@@ -42,7 +35,7 @@ def events(request):
             return cors(request, JsonResponse({'error': 'title and start_date are required'}, status=400))
 
         event = {
-            'id': str(uuid.uuid4()),
+            'id': new_id(),
             'title': title,
             'description': description,
             'location': location,

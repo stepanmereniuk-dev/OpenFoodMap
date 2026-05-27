@@ -1,15 +1,9 @@
 import json
 import hashlib
-from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from pymongo import MongoClient
 from .cors_utils import cors
-
-
-def get_db():
-    client = MongoClient(settings.MONGO_URI)
-    return client[settings.MONGO_DB]
+from .mongo import get_db, new_id
 
 
 @csrf_exempt
@@ -38,7 +32,7 @@ def create_user(request):
         return cors(request, JsonResponse({'error': 'Username or email already exists'}, status=409))
 
     hashed = hashlib.sha256(password.encode()).hexdigest()
-    db.users.insert_one({'username': username, 'email': email, 'password': hashed})
+    db.users.insert_one({'id': new_id(), 'username': username, 'email': email, 'password': hashed})
 
     return cors(request, JsonResponse({'message': f'User {username} created successfully', 'username': username}, status=201))
 

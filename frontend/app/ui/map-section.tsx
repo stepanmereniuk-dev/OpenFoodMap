@@ -59,49 +59,6 @@ export const localPlaces: Record<string, { city: string; country: string; positi
   paris: { city: "Paris", country: "France", position: [48.8566, 2.3522], region: "Ile-de-France" },
 };
 
-export const defaultPeople: Person[] = [
-  {
-    id: 101,
-    name: "Nora",
-    city: "Paris",
-    region: "Ile-de-France",
-    country: "France",
-    color: "#256f56",
-    position: [48.8584, 2.2945],
-    editCount: stableEditCount(101, "Nora"),
-  },
-  {
-    id: 102,
-    name: "Malik",
-    city: "Paris",
-    region: "Ile-de-France",
-    country: "France",
-    color: "#d68b2f",
-    position: [48.864, 2.333],
-    editCount: stableEditCount(102, "Malik"),
-  },
-  {
-    id: 103,
-    name: "Claire",
-    city: "Lyon",
-    region: "Auvergne-Rhone-Alpes",
-    country: "France",
-    color: "#b94c43",
-    position: [45.764, 4.8357],
-    editCount: stableEditCount(103, "Claire"),
-  },
-  {
-    id: 104,
-    name: "Yanis",
-    city: "Marseille",
-    region: "Provence-Alpes-Cote d'Azur",
-    country: "France",
-    color: "#385f9f",
-    position: [43.2965, 5.3698],
-    editCount: stableEditCount(104, "Yanis"),
-  },
-];
-
 export function normalizeKey(value: string) {
   return value.trim().toLowerCase();
 }
