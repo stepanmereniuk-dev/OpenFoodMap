@@ -1,6 +1,6 @@
 import json
 
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from .cors_utils import cors
@@ -26,6 +26,10 @@ def parse_body(request):
         return None
 
 
+def sse_event(event_name, data):
+    return f'event: {event_name}\ndata: {json.dumps(data)}\n\n'
+
+
 @csrf_exempt
 def off_state(request):
     if request.method == 'OPTIONS':
@@ -38,6 +42,44 @@ def off_state(request):
         collection: collection_documents(collection)
         for collection in OFF_COLLECTIONS
     }))
+
+
+@csrf_exempt
+def off_stream(request):
+    if request.method == 'OPTIONS':
+        return cors(request, JsonResponse({}))
+
+    if request.method != 'GET':
+        return cors(request, JsonResponse({'error': 'Method not allowed'}, status=405))
+
+    def stream_changes():
+        yield sse_event('ready', {'ok': True})
+
+        pipeline = [{'$match': {'ns.coll': {'$in': sorted(OFF_COLLECTIONS)}}}]
+        try:
+            with get_db().watch(pipeline, full_document='updateLookup') as changes:
+                for change in changes:
+                    collection = change.get('ns', {}).get('coll')
+                    document = change.get('fullDocument')
+
+                    if collection == 'messages' and document:
+                        yield sse_event('off-message', {
+                            'item': json_document(document),
+                            'operation': change.get('operationType'),
+                        })
+                        continue
+
+                    yield sse_event('off-change', {
+                        'collection': collection,
+                        'operation': change.get('operationType'),
+                    })
+        except Exception as error:
+            yield sse_event('off-error', {'error': str(error)})
+
+    response = StreamingHttpResponse(stream_changes(), content_type='text/event-stream')
+    response['Cache-Control'] = 'no-cache'
+    response['X-Accel-Buffering'] = 'no'
+    return cors(request, response)
 
 
 @csrf_exempt

@@ -15,7 +15,7 @@ import {
   withEditCounts,
 } from "./map-section";
 import type { Person, SelectedScope, UserProfile } from "./map-section";
-import { createOffItem, getOffState, updateOffItem } from "../lib/api";
+import { API_BASE, createOffItem, getOffState, updateOffItem } from "../lib/api";
 
 type ActiveTab = "events" | "channels" | "discussion";
 type MembershipRole = "creator" | "admin" | "member";
@@ -217,6 +217,16 @@ function normalizeMessage(message: Partial<Message>): Message {
   };
 }
 
+function upsertById<T extends { id: string }>(items: T[], item: T) {
+  const exists = items.some((currentItem) => currentItem.id === item.id);
+
+  if (!exists) {
+    return [...items, item];
+  }
+
+  return items.map((currentItem) => (currentItem.id === item.id ? item : currentItem));
+}
+
 function sortByMode<T extends { title: string; createdAt: string }>(
   items: T[],
   sortMode: SortMode,
@@ -395,43 +405,65 @@ export default function FoodMap() {
     activeTab === "discussion" && selectedThreadId
       ? threads.find((thread) => thread.id === selectedThreadId) ?? null
       : null;
+  const activeChatId =
+    activeTab === "events"
+      ? selectedEventId
+      : activeTab === "channels"
+        ? selectedChannelId
+        : selectedThreadId;
 
-  useEffect(() => {
-    let isMounted = true;
+  const refreshOffState = useCallback(async (showError = false) => {
+    try {
+      const state = await getOffState<OffState>();
+      const profiles = uniqueById((state.profiles ?? []).map((currentProfile) => ({ ...currentProfile, id: String(currentProfile.id) })));
 
-    async function loadState() {
-      try {
-        const state = await getOffState<OffState>();
+      setPeople(withEditCounts(profiles.filter((item) => item.visible && item.position).map(profileToPerson)));
+      setChannels((state.channels ?? []).map(normalizeChannel));
+      setThreads((state.threads ?? []).map(normalizeThread));
+      setEvents((state.events ?? []).map(normalizeEvent));
+      setMessages((state.messages ?? []).map(normalizeMessage));
+      setReports(state.reports ?? []);
+      setLogs(state.audit_logs ?? []);
 
-        if (!isMounted) {
-          return;
-        }
-
-        const profiles = uniqueById((state.profiles ?? []).map((profile) => ({ ...profile, id: String(profile.id) })));
-        setPeople(withEditCounts(profiles.filter((item) => item.visible && item.position).map(profileToPerson)));
-        setChannels((state.channels ?? []).map(normalizeChannel));
-        setThreads((state.threads ?? []).map(normalizeThread));
-        setEvents((state.events ?? []).map(normalizeEvent));
-        setMessages((state.messages ?? []).map(normalizeMessage));
-        setReports(state.reports ?? []);
-        setLogs(state.audit_logs ?? []);
-
-        if (profileId) {
-          setProfile(profiles.find((item) => item.id === profileId) ?? null);
-        }
-      } catch {
-        if (isMounted) {
-          setStatus("Connexion serveur impossible. Les données Mongo ne sont pas disponibles.");
-        }
+      if (profileId) {
+        setProfile(profiles.find((item) => item.id === profileId) ?? null);
+      }
+    } catch {
+      if (showError) {
+        setStatus("Connexion serveur impossible. Les données Mongo ne sont pas disponibles.");
       }
     }
+  }, [profileId]);
 
-    void loadState();
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void refreshOffState(true);
+    }, 0);
 
     return () => {
-      isMounted = false;
+      window.clearTimeout(timeoutId);
     };
-  }, [profileId]);
+  }, [refreshOffState]);
+
+  useEffect(() => {
+    if (!activeChatId) {
+      return;
+    }
+
+    const source = new EventSource(`${API_BASE}/api/off/stream/`);
+    source.addEventListener("off-message", (event) => {
+      const data = JSON.parse((event as MessageEvent).data) as { item?: Partial<Message> };
+
+      if (data.item) {
+        const message = normalizeMessage(data.item);
+        setMessages((currentMessages) => upsertById(currentMessages, message));
+      }
+    });
+
+    return () => {
+      source.close();
+    };
+  }, [activeChatId, refreshOffState]);
 
   useEffect(() => {
     if (profileId) {

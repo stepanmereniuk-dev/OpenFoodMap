@@ -9,6 +9,7 @@ from .api import (
     off_collection,
     off_item,
     off_state,
+    off_stream,
     test_mongodb_connection,
     test_url,
 )
@@ -24,6 +25,7 @@ urlpatterns = [
     path('api/events/', events),
     path('api/comments/', comments),
     path('api/off/state/', off_state),
+    path('api/off/stream/', off_stream),
     path('api/off/<str:collection_name>/', off_collection),
     path('api/off/<str:collection_name>/<str:item_id>/', off_item),
 ]
