@@ -76,8 +76,8 @@ DATABASES = {
     }
 }
 
-MONGO_URI = os.environ.get('MONGO_URI')
-MONGO_DB = os.environ.get('MONGO_DB')
+MONGO_URI = os.environ.get('MONGO_URI') or os.environ.get('URL')
+MONGO_DB = os.environ.get('MONGO_DB', 'open_food_map_db')
 
 if not MONGO_URI:
     raise RuntimeError('MONGO_URI environment variable is required')
