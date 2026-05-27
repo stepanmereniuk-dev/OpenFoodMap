@@ -477,9 +477,10 @@ export default function FoodMap() {
     setIsSaving(true);
 
     try {
-      const pseudo = form.pseudo.trim();
-      const place = form.place.trim();
-      const visible = !form.invisible;
+      const formData = new FormData(event.currentTarget);
+      const pseudo = String(formData.get("pseudo") ?? form.pseudo).trim();
+      const place = String(formData.get("place") ?? form.place).trim();
+      const visible = !formData.has("invisible");
       let location: Awaited<ReturnType<typeof geocodeLocation>>;
 
       try {
@@ -1790,6 +1791,7 @@ export default function FoodMap() {
                 Pseudo
                 <input
                   autoFocus
+                  name="pseudo"
                   onChange={(event) => setForm({ ...form, pseudo: event.target.value })}
                   placeholder="Ex: Nora"
                   required
@@ -1800,6 +1802,7 @@ export default function FoodMap() {
               <label>
                 Lieu
                 <input
+                  name="place"
                   onChange={(event) => setForm({ ...form, place: event.target.value })}
                   placeholder="Ville ou pays"
                   required
@@ -1810,10 +1813,14 @@ export default function FoodMap() {
               <label className="visibility-row">
                 <input
                   checked={form.invisible}
+                  name="invisible"
                   onChange={(event) => setForm({ ...form, invisible: event.target.checked })}
                   type="checkbox"
                 />
-                Ne pas être visible sur la carte
+                <span>
+                  Ne pas être visible sur la carte
+                  <small>Ton profil reste utilisable, mais aucun point n&apos;est ajouté.</small>
+                </span>
               </label>
 
               <button className="submit-person" disabled={isSaving} type="submit">
